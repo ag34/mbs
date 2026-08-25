@@ -1,0 +1,3 @@
+2026-08-05 19:46:18
+Failed to send SMS! Missing credentials or phone. ID: '', Key: '', Sender: '', Phone: '0532 123 4567'
+

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- HTML Anti-Cache & No-Index Privacy Headers -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+    <title>Çiftlikköy Belediyesi - Mezarlık Bilgi Sistemi</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            navy: '#0f172a',
+                            blue: '#1d4ed8',
+                            emerald: '#059669',
+                            light: '#f8fafc'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- CSS & Fonts -->
+    <link rel="stylesheet" href="assets/css/style.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden relative">
+
+    <!-- Decorative Background Elements -->
+    <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <div class="absolute -top-[20%] -right-[10%] w-[800px] h-[800px] bg-blue-100/50 rounded-full mix-blend-multiply filter blur-[80px]"></div>
+        <div class="absolute -bottom-[20%] -left-[10%] w-[600px] h-[600px] bg-emerald-100/50 rounded-full mix-blend-multiply filter blur-[80px]"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="relative z-10 glass-panel border-b border-white/50 px-6 py-4 shrink-0 shadow-sm flex items-center justify-between">
+        <a href="index.html" class="flex items-center gap-4 group">
+            <div class="bg-white p-2 rounded-xl shadow-sm border border-slate-100 group-hover:shadow-md transition">
+                <img src="https://www.yalovaciftlikkoy.bel.tr/upload/temelbilgiler/1717139886.svg" alt="Çiftlikköy Belediyesi" class="h-10 w-auto">
+            </div>
+            <div>
+                <h1 class="text-sm md:text-lg font-extrabold text-slate-900 tracking-tight leading-tight">T.C. ÇİFTLİKKÖY BELEDİYESİ</h1>
+                <p class="text-xs md:text-sm font-semibold text-brand-emerald">Mezarlık Bilgi Sistemi</p>
+            </div>
+        </a>
+        <div class="hidden md:flex gap-4 items-center">
+            <div class="text-right">
+                <p class="text-xl font-black text-brand-navy leading-none" id="statTotalDefin">...</p>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Kayıtlı Defin</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="relative z-10 flex-1 flex flex-col lg:flex-row w-full max-w-[1600px] mx-auto overflow-hidden">
+        
+        <!-- Left Sidebar: Search & Results -->
+        <aside class="w-full lg:w-[450px] xl:w-[500px] flex flex-col h-[50vh] lg:h-full shrink-0 border-r border-slate-200/60 bg-white/40 backdrop-blur-md">
+            
+            <!-- Search Header -->
+            <div class="p-6 pb-4 shrink-0">
+                <h2 class="text-2xl font-black text-slate-800 tracking-tight mb-2">Defin Sorgulama</h2>
+                <p class="text-sm text-slate-500 mb-6 font-medium">Yakınınızın adını, soyadını veya mezarlık bilgisini girerek konumunu bulabilirsiniz.</p>
+                
+                <div class="flex flex-col gap-3">
+                    <div class="relative">
+                        <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="searchInput" class="w-full h-12 pl-11 pr-4 bg-white border border-slate-200 rounded-xl text-slate-700 font-semibold focus:border-brand-blue focus:ring-4 focus:ring-blue-100 transition shadow-sm outline-none" placeholder="Vefat eden adı veya soyadı..." autocomplete="off">
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="mezarlikSelect" class="flex-1 h-12 px-4 bg-white border border-slate-200 rounded-xl text-slate-600 font-semibold focus:border-brand-emerald focus:ring-4 focus:ring-emerald-100 transition shadow-sm outline-none appearance-none cursor-pointer">
+                            <option value="0">Tüm Mezarlıklar</option>
+                        </select>
+                        <button id="searchBtn" type="button" class="h-12 px-6 bg-brand-navy hover:bg-slate-800 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition flex items-center gap-2">
+                            BUL <i class="fa-solid fa-arrow-right text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results List -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-6 pt-0 flex flex-col gap-3" id="resultsList">
+                <div class="h-full flex flex-col items-center justify-center text-center text-slate-400">
+                    <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4 border border-slate-200">
+                        <i class="fa-solid fa-map-location-dot text-2xl text-slate-300"></i>
+                    </div>
+                    <p class="font-medium">Arama yapmak için yukarıdaki<br>alanları kullanın.</p>
+                </div>
+            </div>
+            
+            <div class="p-4 bg-slate-100/50 border-t border-slate-200/50 flex justify-between items-center shrink-0">
+                <span class="text-xs font-semibold text-slate-500">Sonuç Sayısı: <span id="resultCountBadge" class="text-brand-navy font-bold">0</span></span>
+            </div>
+        </aside>
+
+        <!-- Right Side: Map -->
+        <section class="flex-1 h-[50vh] lg:h-full relative bg-slate-100">
+            <div id="leafletMap" class="w-full h-full z-0"></div>
+            
+            <!-- Map Overlay UI (Optional) -->
+            <div class="absolute top-4 right-4 z-10 glass-panel p-3 rounded-2xl flex items-center gap-3">
+                <i class="fa-solid fa-info-circle text-brand-blue text-lg"></i>
+                <span class="text-xs font-bold text-slate-600">Haritada gezinmek için sürükleyin</span>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal Overlay -->
+    <div id="publicDetailModal" class="modal-overlay hidden fixed inset-0 bg-slate-900/60 z-[9999] items-center justify-center p-4">
+        <div class="modal-content w-full max-w-lg bg-white rounded-[24px] shadow-2xl flex flex-col overflow-hidden relative">
+            
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-brand-navy to-blue-900 p-6 text-white relative">
+                <button onclick="closePublicDetailModal()" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/25 rounded-full transition cursor-pointer">
+                    <i class="fa-solid fa-times text-lg"></i>
+                </button>
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/30 shrink-0">
+                        <i class="fa-solid fa-user-large text-2xl"></i>
+                    </div>
+                    <div>
+                        <h3 id="pubFullName" class="text-2xl font-black tracking-tight leading-tight">—</h3>
+                        <p class="text-blue-200 font-semibold text-sm mt-0.5">Vefat Kaydı Detayı</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6 flex flex-col gap-5 overflow-y-auto max-h-[70vh]">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Baba Adı</span>
+                        <p id="pubBaba" class="font-bold text-slate-800 mt-1 truncate">—</p>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Anne Adı</span>
+                        <p id="pubAnne" class="font-bold text-slate-800 mt-1 truncate">—</p>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Doğum Yılı / Yeri</span>
+                        <p id="pubDogum" class="font-bold text-slate-800 mt-1 truncate">—</p>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Ölüm / Defin</span>
+                        <p id="pubOlum" class="font-bold text-slate-800 mt-1 truncate">—</p>
+                    </div>
+                    <div class="col-span-2 bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex flex-col gap-1">
+                        <span class="text-[10px] uppercase font-bold text-brand-blue tracking-wider">Mezarlık Konumu</span>
+                        <p id="pubMezarlik" class="font-black text-brand-navy text-lg leading-tight">—</p>
+                    </div>
+                </div>
+
+                <div id="pubGorselBox" class="hidden flex-col items-center gap-2">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Mezar Fotoğrafı</span>
+                    <img id="pubGorselImg" src="" alt="Mezar Taşı" class="w-full max-h-48 object-cover rounded-2xl border-4 border-slate-100 shadow-sm cursor-pointer hover:opacity-90 transition">
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                <div id="pubNavContainer" class="hidden w-full">
+                    <a id="pubNavBtn" href="#" target="_blank" class="w-full flex items-center justify-center gap-3 bg-brand-emerald hover:bg-green-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/30 transition transform hover:-translate-y-0.5">
+                        <i class="fa-solid fa-location-arrow text-xl"></i>
+                        Haritada Yol Tarifi Al
+                    </a>
+                </div>
+                <button onclick="closePublicDetailModal()" class="w-full bg-white hover:bg-slate-100 text-slate-600 font-bold py-3 rounded-2xl border border-slate-200 transition">
+                    Kapat
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Libraries -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="assets/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+<html>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<body>
+<div x-data="{ docFields: { sag_imza: true } }">
+    <input type="radio" x-model="docFields.sag_imza_tipi" value="yakin" id="r1">
+    <label for="r1">Yakin</label>
+    <button @click="console.log(JSON.stringify(docFields))" id="b1">Log</button>
+</div>
+</body>
+</html>

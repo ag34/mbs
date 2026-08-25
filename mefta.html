@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- KVKK & Gizlilik -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet">
+    <title>Defin Kaydı Detayı — Çiftlikköy Belediyesi</title>
+    
+    <!-- CSS & Fonts -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: { 
+                    colors: { 
+                        brand: { 
+                            navy: '#0f172a',
+                            blue: '#1d4ed8',
+                            emerald: '#059669',
+                            light: '#f8fafc' 
+                        } 
+                    },
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+        [x-cloak] { display: none !important; }
+        .glass-header {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid #e2e8f0;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .leaflet-container { z-index: 10; font-family: 'Plus Jakarta Sans', sans-serif !important; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col" x-data="meftaApp">
+
+    <!-- Header -->
+    <header class="glass-header sticky top-0 z-50 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="index.html" class="flex items-center gap-3 hover:opacity-90 transition">
+                <div class="bg-brand-navy p-1.5 rounded-xl">
+                    <img src="https://www.yalovaciftlikkoy.bel.tr/upload/temelbilgiler/1717139886.svg" alt="Çiftlikköy Belediyesi" class="h-9 filter brightness-0 invert">
+                </div>
+                <div>
+                    <h1 class="text-lg font-black tracking-wide leading-tight text-brand-navy">T.C. ÇİFTLİKKÖY BELEDİYESİ</h1>
+                    <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest line-clamp-1">Mezarlık Bilgi Sistemi</p>
+                </div>
+            </a>
+            
+            <template x-if="isAdmin">
+                <span class="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 text-xs font-bold rounded-xl border border-orange-200">
+                    <i class="fa-solid fa-shield-halved"></i> Yönetici Oturumu
+                </span>
+            </template>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 w-full max-w-6xl mx-auto px-4 py-8">
+        
+        <template x-if="isLoading">
+            <div class="flex flex-col items-center justify-center py-20 text-slate-500">
+                <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-4 text-brand-navy"></i>
+                <p class="font-medium">Kayıt bilgileri yükleniyor...</p>
+            </div>
+        </template>
+
+        <template x-if="!isLoading && !record">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
+                <div class="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fa-solid fa-exclamation-triangle text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Kayıt Bulunamadı</h2>
+                <p class="text-slate-500 mb-6">Aradığınız defin kaydı veritabanında bulunmuyor veya silinmiş olabilir.</p>
+                <a href="index.html" class="px-6 py-3 bg-brand-navy text-white font-semibold rounded-xl hover:bg-blue-800 transition inline-block">Ana Sayfaya Dön</a>
+            </div>
+        </template>
+
+        <template x-if="!isLoading && record">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- Sol Panel (Bilgiler) -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Üst Başlık Kartı -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative overflow-hidden">
+                        <!-- Dekoratif Arka Plan Deseni -->
+                        <div class="absolute top-0 right-0 -mt-10 -mr-10 opacity-5 pointer-events-none">
+                            <i class="fa-solid fa-fingerprint text-[15rem] text-brand-navy"></i>
+                        </div>
+                        
+                        <div class="flex flex-col md:flex-row justify-between items-start gap-6 relative z-10">
+                            <div class="flex-1 w-full">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="px-3 py-1 bg-blue-50 text-brand-navy text-xs font-bold rounded-lg border border-blue-100 uppercase tracking-widest">Kayıt #<span x-text="record.id"></span></span>
+                                    <span class="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100 uppercase tracking-widest" x-show="record.onay_durumu == 1"><i class="fa-solid fa-check mr-1"></i> Onaylı</span>
+                                    <span class="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-100 uppercase tracking-widest" x-show="record.onay_durumu == 0"><i class="fa-solid fa-clock mr-1"></i> Onay Bekliyor</span>
+                                </div>
+                                <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight mb-4" x-text="record.ad + ' ' + record.soyad"></h2>
+                                
+                                <!-- Yönetici İşlemleri -->
+                                <template x-if="isAdmin">
+                                    <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+                                        <button @click="downloadPdf()" class="flex-1 sm:flex-none px-4 py-2.5 bg-brand-navy text-white hover:bg-blue-900 text-sm font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+                                            <i class="fa-solid fa-file-pdf"></i> PDF İndir
+                                        </button>
+                                        <button @click="editRecord()" class="flex-1 sm:flex-none px-4 py-2.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-sm font-bold rounded-xl transition flex items-center justify-center gap-2">
+                                            <i class="fa-solid fa-pen"></i> Düzenle
+                                        </button>
+                                        <button @click="deleteRecord()" class="flex-1 sm:flex-none px-4 py-2.5 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-sm font-bold rounded-xl transition flex items-center justify-center gap-2">
+                                            <i class="fa-solid fa-trash"></i> Sil
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            
+                            <div class="shrink-0 bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col items-center w-full sm:w-auto self-center">
+                                <img :src="'api/index.php?action=qr_code&id=' + record.id" class="w-24 h-24 mix-blend-multiply" alt="QR Kod">
+                                <span class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Sistem Doğrulaması</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kişisel Bilgiler -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <i class="fa-solid fa-id-card"></i> Kişisel Bilgiler
+                            </h3>
+                        </div>
+                        <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8">
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">T.C. Kimlik No</p>
+                                <p class="text-lg font-bold text-slate-800" x-text="record.tc_no || '—'"></p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Baba / Anne Adı</p>
+                                <p class="text-lg font-bold text-slate-800"><span x-text="record.baba_adi || '—'"></span> / <span x-text="record.anne_adi || '—'"></span></p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Doğum Yeri ve Tarihi</p>
+                                <p class="text-lg font-bold text-slate-800"><span x-text="record.dogum_yeri || 'Çiftlikköy'"></span> (<span x-text="record.dogum_tarihi || '—'"></span>)</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Vefat Tarihi</p>
+                                <p class="text-lg font-bold text-slate-800" x-text="record.olum_tarihi || '—'"></p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Ölüm Nedeni</p>
+                                <p class="text-lg font-bold text-slate-800" x-text="record.olum_nedeni || 'DOĞAL ÖLÜM'"></p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Ölüm Belge No</p>
+                                <p class="text-lg font-bold text-slate-800" x-text="record.belge_no || '—'"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Defin Bilgileri -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <i class="fa-solid fa-map-location-dot"></i> Defin Yeri Bilgileri
+                            </h3>
+                        </div>
+                        <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8">
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Mezarlık</p>
+                                <p class="text-lg font-bold text-slate-800" x-text="record.mezarlik_adi || 'Yeni Mezarlık'"></p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Defin Bölümü</p>
+                                <p class="text-lg font-bold text-slate-800" x-text="record.defin_bolum || 'SIRADAN'"></p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Ada</p>
+                                <p class="text-lg font-bold text-slate-800"><span x-text="record.ada_no || '—'"></span>. ADA</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Parsel</p>
+                                <p class="text-lg font-bold text-slate-800"><span x-text="record.parsel_no || '—'"></span>. PARSEL</p>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Defin Tarihi</p>
+                                <p class="text-lg font-bold text-slate-800" x-text="record.defin_tarihi || '—'"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cenaze Yakını (Admin Only) -->
+                    <template x-if="isAdmin">
+                        <div class="bg-orange-50/50 rounded-2xl border border-orange-200 overflow-hidden">
+                            <div class="bg-orange-100/50 px-6 py-4 border-b border-orange-200">
+                                <h3 class="text-xs font-black text-orange-700 uppercase tracking-widest flex items-center gap-2">
+                                    <i class="fa-solid fa-lock"></i> Cenaze Yakını (Sadece Yönetici Görebilir)
+                                </h3>
+                            </div>
+                            <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8">
+                                <div>
+                                    <p class="text-[11px] font-bold text-orange-800/60 uppercase mb-1">Adı Soyadı (Akrabalık)</p>
+                                    <p class="text-lg font-bold text-orange-950" x-text="(record.yakin_ad_soyad || '—') + (record.yakin_akrabalik ? ` (${record.yakin_akrabalik})` : '')"></p>
+                                </div>
+                                <div>
+                                    <p class="text-[11px] font-bold text-orange-800/60 uppercase mb-1">Telefon Numarası</p>
+                                    <p class="text-lg font-bold text-orange-950" x-text="record.yakin_telefon || '—'"></p>
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <p class="text-[11px] font-bold text-orange-800/60 uppercase mb-1">İkamet Adresi</p>
+                                    <p class="text-lg font-bold text-orange-950" x-text="record.yakin_adres || '—'"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Sağ Panel (Harita & Medya) -->
+                <div class="space-y-6">
+                    
+                    <!-- Harita Kartı -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                        <div class="bg-slate-50 px-5 py-4 border-b border-slate-200">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <i class="fa-solid fa-map"></i> Mezar Konumu (Kroki)
+                            </h3>
+                        </div>
+                        <div class="p-1 relative">
+                            <div id="meftaMap" class="w-full h-72 rounded-xl z-10 relative"></div>
+                            <div x-show="!record.lat" class="absolute inset-0 bg-slate-100 flex items-center justify-center z-20 m-1 rounded-xl border border-slate-200">
+                                <p class="text-sm font-semibold text-slate-500">Konum işlenmemiş.</p>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-slate-50 border-t border-slate-100" x-show="record.lat">
+                            <a :href="`https://www.google.com/maps/dir/?api=1&destination=${record.lat},${record.lng}`" target="_blank" class="w-full px-4 py-3 bg-brand-navy text-white font-bold rounded-xl hover:bg-blue-800 transition flex items-center justify-center gap-2 shadow-sm text-sm">
+                                <i class="fa-solid fa-location-arrow"></i> Navigasyon Başlat
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Görsel Kartı -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-50 px-5 py-4 border-b border-slate-200">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <i class="fa-solid fa-camera"></i> Mezar Taşı Fotoğrafı
+                            </h3>
+                        </div>
+                        <div class="p-5">
+                            <template x-if="parsedImages && parsedImages.length > 0">
+                                <div class="flex gap-4 overflow-x-auto pb-4 snap-x custom-scrollbar">
+                                    <template x-for="(img, idx) in parsedImages" :key="idx">
+                                        <div class="min-w-[80%] sm:min-w-[250px] aspect-square shrink-0 snap-center">
+                                            <img :src="img" class="w-full h-full object-cover rounded-xl shadow-sm border border-slate-200 cursor-zoom-in hover:opacity-90 transition" @click="openImageModal(img)" :alt="'Mezar Fotoğrafı ' + (idx+1)">
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                            <template x-if="!parsedImages || parsedImages.length === 0">
+                                <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl py-12 px-6 flex flex-col items-center">
+                                    <div class="w-12 h-12 bg-slate-200 text-slate-400 rounded-full flex items-center justify-center mb-3">
+                                        <i class="fa-solid fa-image-slash text-xl"></i>
+                                    </div>
+                                    <p class="text-sm font-semibold text-slate-500">Görsel Bulunamadı</p>
+                                </div>
+                            </template>
+                        </div>
+
+                    </div>
+
+                    <!-- Paylaşım Kartı -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-50 px-5 py-4 border-b border-slate-200">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <i class="fa-solid fa-share-nodes"></i> İlan & Paylaşım
+                            </h3>
+                        </div>
+                        <div class="p-5 flex flex-col gap-3">
+                            <button @click="shareOnWhatsApp()" class="w-full px-4 py-3 bg-emerald-500/10 text-emerald-600 font-bold rounded-xl hover:bg-emerald-500 hover:text-white transition flex items-center justify-center gap-2 text-sm border border-emerald-500/20">
+                                <i class="fa-brands fa-whatsapp text-lg"></i> WhatsApp İle Paylaş
+                            </button>
+                            <button @click="copyLink()" class="w-full px-4 py-3 bg-brand-navy/10 text-brand-navy font-bold rounded-xl hover:bg-brand-navy hover:text-white transition flex items-center justify-center gap-2 text-sm border border-brand-navy/20">
+                                <i class="fa-solid fa-link"></i> Sayfa Bağlantısını Kopyala
+                            </button>
+                        </div>
+                    </div>
+
+
+
+                </div>
+            </div>
+        </template>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-6 mt-auto">
+        <div class="max-w-6xl mx-auto px-4 text-center">
+            <p class="text-sm font-semibold text-slate-500">&copy; 2026 T.C. Çiftlikköy Belediyesi Park ve Bahçeler Müdürlüğü | Mezarlık Bilgi Sistemi</p>
+        </div>
+    </footer>
+
+    <!-- Tam Ekran Görsel Modalı -->
+    <div x-show="isImageModalOpen" class="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4" x-cloak @click="closeImageModal()" @keydown.escape.window="closeImageModal()">
+        <div class="relative bg-white p-2 rounded-2xl w-full max-w-4xl" @click.stop>
+            <img :src="modalImageUrl" class="w-full h-auto max-h-[85vh] object-contain rounded-xl">
+            <button @click="closeImageModal()" class="absolute -top-4 -right-4 w-10 h-10 bg-white text-slate-800 rounded-full flex items-center justify-center shadow-xl hover:bg-slate-100 hover:scale-105 transition border border-slate-200 text-lg">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Alpine.js Application Logic -->
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('meftaApp', () => ({
+                record: {},
+                parsedImages: [],
+                isLoading: true,
+                isAdmin: localStorage.getItem('mbs_admin_logged') === 'true',
+                isImageModalOpen: false,
+                modalImageUrl: '',
+                map: null,
+                marker: null,
+
+                async init() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const recordId = urlParams.get('id');
+
+                    if (!recordId) {
+                        Swal.fire('Hata', 'Kayıt numarası eksik!', 'error').then(() => {
+                            window.location.href = 'index.html';
+                        });
+                        return;
+                    }
+
+                    await this.fetchDetails(recordId);
+                },
+
+                async fetchDetails(id) {
+                    this.isLoading = true;
+                    try {
+                        const res = await fetch(`api/index.php?action=vatandas_sorgu&id=${id}`);
+                        const json = await res.json();
+
+                        if (json.status === 'success' && json.data && json.data.length > 0) {
+                            this.record = json.data[0];
+                            document.title = `${this.record.ad} ${this.record.soyad} — Defin Kaydı (MBS)`;
+                            
+                            // Parse JSON images
+                            if (this.record.gorsel_url) {
+                                try {
+                                    this.parsedImages = JSON.parse(this.record.gorsel_url);
+                                    if (!Array.isArray(this.parsedImages)) this.parsedImages = [this.record.gorsel_url];
+                                } catch(e) {
+                                    this.parsedImages = [this.record.gorsel_url];
+                                }
+                            }
+
+                            if (this.record.lat && this.record.lng) {
+                                setTimeout(() => this.initMap(this.record.lat, this.record.lng), 100);
+                            }
+                        } else {
+                            this.record = null;
+                        }
+                    } catch (err) {
+                        console.error('Fetch error:', err);
+                        this.record = null;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+
+                initMap(lat, lng) {
+                    if (this.map) {
+                        this.map.remove();
+                    }
+                    this.map = L.map('meftaMap').setView([lat, lng], 17);
+                    L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+                        maxZoom: 20,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+                    }).addTo(this.map);
+                    
+                    this.marker = L.marker([lat, lng]).addTo(this.map)
+                        .bindPopup(`<b>${this.record.ad} ${this.record.soyad}</b><br>Mezar Konumu`)
+                        .openPopup();
+                },
+
+                openImageModal(url) {
+                    this.modalImageUrl = url;
+                    this.isImageModalOpen = true;
+                },
+
+                closeImageModal() {
+                    this.isImageModalOpen = false;
+                    this.modalImageUrl = '';
+                },
+
+                shareOnWhatsApp() {
+                    if (!this.record) return;
+                    const pageUrl = window.location.href;
+                    const text = `*T.C. ÇİFTLİKKÖY BELEDİYESİ VEFAT İLANI*\n\n*Vefat Eden:* ${this.record.ad} ${this.record.soyad}\n*Vefat Tarihi:* ${this.record.olum_tarihi || '—'}\n*Mezarlık:* ${this.record.mezarlik_adi || 'Yeni Mezarlık'}\n*Ada/Parsel:* ${this.record.ada_no || '—'}. Ada / ${this.record.parsel_no || '—'}. Parsel\n\n*Detaylar:* ${pageUrl}`;
+                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                },
+
+                copyLink() {
+                    navigator.clipboard.writeText(window.location.href).then(() => {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Kopyalandı',
+                            text: 'Sayfa bağlantısı panoya kopyalandı.',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+                    });
+                },
+
+                downloadPdf() {
+                    if (this.record && this.record.id) {
+                        window.open(`api/index.php?action=export_tekli_pdf&id=${this.record.id}&admin_key=1`, '_blank');
+                    }
+                },
+
+                editRecord() {
+                    if (window.parent && window.parent !== window && window.parent.document.querySelector('[x-data="adminApp"]')) {
+                        // We are inside the iframe modal! 
+                        const adminAppEl = window.parent.document.querySelector('[x-data="adminApp"]');
+                        if(adminAppEl.__x) {
+                            adminAppEl.__x.$data.closePreviewModal();
+                            adminAppEl.__x.$data.openEditModal(this.record.id);
+                        }
+                    } else {
+                        // Opened directly in tab
+                        window.location.href = `admin/index.html`;
+                    }
+                },
+
+                async deleteRecord() {
+                    if (window.parent && window.parent !== window && window.parent.document.querySelector('[x-data="adminApp"]')) {
+                        // We are inside the iframe modal! Trigger parent's delete modal directly
+                        const adminAppEl = window.parent.document.querySelector('[x-data="adminApp"]');
+                        if(adminAppEl.__x) {
+                            adminAppEl.__x.$data.closePreviewModal();
+                            adminAppEl.__x.$data.deleteRecord(this.record.id);
+                        }
+                    } else {
+                        // Fallback if accessed directly
+                        Swal.fire('Hata', 'Kayıt silme işlemi yalnızca Yönetim Paneli tablosu üzerinden yapılabilir.', 'warning');
+                    }
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

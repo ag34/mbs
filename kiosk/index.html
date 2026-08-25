@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Kiosk Privacy & Anti-Cache Headers -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Mezarlık Bilgi Kiosku</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+                    colors: { brand: { navy: '#0f172a', light: '#f8fafc', green: '#166534', accent: '#3b82f6' } },
+                    animation: {
+                        'blob': 'blob 7s infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+    
+    <!-- QRious (QR Code Generator) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+        body { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+        img { -webkit-user-drag: none; user-drag: none; pointer-events: auto; }
+        
+        /* Modern Glass Panel */
+        .glass-panel { 
+            background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(40px); 
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.6); 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+        }
+
+        .kiosk-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .kiosk-btn:active { transform: scale(0.96); }
+        
+        /* Responsive Keyboard Keys */
+        .keyboard-key {
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            border: 1px solid #cbd5e1;
+            border-bottom-width: 4px;
+            border-bottom-color: #94a3b8;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: #1e293b;
+            height: 48px;
+            cursor: pointer;
+            transition: all 0.1s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            padding: 0 4px;
+        }
+        @media (min-width: 768px) {
+            .keyboard-key { height: 50px; font-size: 1.25rem; border-radius: 10px; border-bottom-width: 4px; padding: 0 6px; }
+        }
+        @media (min-width: 1280px) {
+            .keyboard-key { height: 55px; font-size: 1.5rem; border-radius: 10px; border-bottom-width: 5px; padding: 0 10px; }
+        }
+        .keyboard-key:active {
+            transform: translateY(2px);
+            border-bottom-width: 2px;
+            background: #f8fafc;
+        }
+
+        /* Pulsing Ring for Welcome Screen */
+        .pulse-ring {
+            position: absolute;
+            inset: -20px;
+            border-radius: 50%;
+            border: 4px solid rgba(59, 130, 246, 0.5);
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased w-full h-screen overflow-hidden flex flex-col relative" x-data="kioskApp()" @click="resetIdleTimer">
+
+    <!-- Background Gradient Mesh -->
+    <div class="fixed inset-0 z-0  bg-gradient-to-br from-slate-900 via-[#0f172a] to-slate-800">
+        <div class="absolute top-[-20%] left-[-10%] w-[120vw] h-[120vh] bg-brand-green/30 rounded-full mix-blend-overlay filter blur-[100px] opacity-60 animate-pulse-slow"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[90vw] h-[90vh] bg-slate-500/20 rounded-full mix-blend-overlay filter blur-[80px] opacity-40"></div>
+    </div>
+
+    <!-- Offline Overlay -->
+    <div x-show="isOffline" x-cloak class="fixed inset-0 z-[9999] bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center text-white text-center">
+        <i class="fa-solid fa-wifi fa-fade text-6xl md:text-8xl mb-6 text-red-500"></i>
+        <h2 class="text-3xl md:text-5xl font-black mb-4">Bağlantı Koptu</h2>
+        <p class="text-lg md:text-2xl text-slate-300">İnternet bağlantısı bekleniyor. Lütfen bekleyiniz...</p>
+    </div>
+
+    <!-- 0. Setup Screen -->
+    <div x-show="showSetup" x-cloak class="absolute inset-0 bg-slate-900/60 z-[100] flex flex-col items-center justify-center p-4 md:p-8 backdrop-blur-2xl">
+        <div class="bg-white rounded-3xl md:rounded-[40px] p-6 md:p-10 max-w-3xl w-full shadow-2xl text-center border border-white/20 flex flex-col max-h-[90vh]">
+            <div class="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-brand-navy to-indigo-900 text-white rounded-full flex items-center justify-center text-3xl md:text-5xl mx-auto mb-4 md:mb-6 shadow-lg shadow-brand-navy/30 shrink-0">
+                <i class="fa-solid fa-cogs"></i>
+            </div>
+            <h2 class="text-2xl md:text-4xl font-black text-slate-800 mb-2 md:mb-4 shrink-0">Kiosk İlk Kurulum</h2>
+            <p class="text-slate-500 mb-4 md:mb-8 text-md md:text-xl font-medium shrink-0">Bu Kiosk cihazının yerini belirleyip harita rotalarının doğru çizilmesini sağlamak için konumu kaydedin.</p>
+            
+            <div class="flex items-center justify-center flex-1">
+                <button @click="saveKioskLocation()" :disabled="isLocating" class="kiosk-btn w-full max-w-lg p-6 md:p-8 bg-gradient-to-r from-brand-green to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-3xl md:rounded-[30px] font-black shadow-xl shadow-green-900/20 flex flex-col items-center justify-center gap-4 transition-all disabled:opacity-50 disabled:cursor-wait">
+                    <div class="bg-white/20 p-4 rounded-full flex items-center justify-center">
+                        <i class="fa-solid fa-location-crosshairs text-4xl md:text-5xl" :class="isLocating ? 'fa-spin' : ''"></i>
+                    </div>
+                    <span class="text-2xl md:text-3xl" x-text="isLocating ? 'Konum Bulunuyor...' : 'Kiosk Konumunu Kaydet'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header Katmanı -->
+    <header class="relative z-10 glass-panel mx-4 mt-2 md:mx-6 md:mt-4 rounded-2xl md:rounded-[20px] p-2 md:p-3 flex items-center justify-center shrink-0">
+        <div class="flex items-center gap-3 md:gap-5">
+            <div class="p-1 md:p-2 bg-white rounded-xl md:rounded-[15px] shadow-sm border border-slate-100">
+                <img :src="settings.logo_url" alt="Logo" class="h-8 md:h-12 w-auto object-contain pointer-events-none" x-show="settings.logo_url">
+            </div>
+            <div class="text-center">
+                <h1 class="text-lg md:text-2xl font-black text-slate-800 tracking-tight" x-text="settings.belediye_adi"></h1>
+                <p class="text-xs md:text-lg font-bold text-brand-green mt-0.5">Mezarlık Bilgi Sistemi</p>
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div x-show="step > 0" x-cloak x-transition class="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 flex gap-2 md:gap-3">
+            <button x-show="step > 1" @click="step = step - 1" class="kiosk-btn h-10 md:h-12 xl:h-14 px-3 md:px-5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl md:rounded-[15px] font-bold text-sm md:text-lg xl:text-xl shadow-sm flex items-center gap-2">
+                <i class="fa-solid fa-arrow-left"></i> <span class="hidden lg:inline">Geri Dön</span>
+            </button>
+            <button @click="resetToHome()" class="kiosk-btn h-10 md:h-12 xl:h-14 px-3 md:px-5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-xl md:rounded-[15px] font-bold text-sm md:text-lg xl:text-xl shadow-sm flex items-center gap-2">
+                <i class="fa-solid fa-house"></i> <span class="hidden lg:inline">İptal</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="relative z-10 flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-6 w-full max-w-[1920px] mx-auto min-h-0 h-full">
+        
+        <!-- STEP 0: Welcome Screen -->
+        <div x-show="step === 0" x-transition.opacity.duration.500ms class="absolute inset-4 md:inset-6 xl:inset-8 glass-panel rounded-3xl md:rounded-[40px] flex flex-col items-center justify-center cursor-pointer z-40 hover:bg-white/90 transition-colors" @click="step = 1">
+            <div class="relative mb-8 md:mb-12">
+                <div class="pulse-ring" style="border-color: rgba(22, 101, 52, 0.5);"></div>
+                <div class="w-32 h-32 md:w-56 md:h-56 xl:w-64 xl:h-64 bg-gradient-to-br from-brand-green to-emerald-800 text-white rounded-full flex items-center justify-center text-5xl md:text-7xl xl:text-8xl shadow-[0_0_80px_rgba(22,101,52,0.6)] relative z-10">
+                    <i class="fa-regular fa-hand-pointer animate-bounce"></i>
+                </div>
+            </div>
+            <h2 class="text-3xl md:text-5xl xl:text-7xl font-black text-slate-800 mb-3 md:mb-6 tracking-tighter text-center">Hoş Geldiniz</h2>
+            <p class="text-slate-500 text-lg md:text-2xl xl:text-4xl font-medium text-center px-4 md:px-8">Mezarlık Bilgi Sistemini kullanmaya başlamak için <br/><span class="text-brand-green font-black">ekrana dokunun</span></p>
+        </div>
+
+        <!-- STEP 1: Search Form & Keyboard -->
+        <div x-show="step === 1" x-cloak x-transition.opacity.duration.500ms class="flex-1 min-h-0 flex flex-col gap-2 md:gap-3 w-full h-full justify-center">
+            <div class="glass-panel rounded-2xl md:rounded-[20px] p-3 md:p-4 text-center shrink-0">
+                <h2 class="text-xl md:text-3xl font-black text-slate-800 mb-1 md:mb-2">Mevta Arama</h2>
+                <p class="text-slate-500 text-sm md:text-lg mb-3 md:mb-4 font-medium">Lütfen aradığınız kişinin adını veya soyadını girin.</p>
+                <div class="flex flex-col md:flex-row gap-2 md:gap-3 max-w-4xl mx-auto">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-brand-green text-lg md:text-2xl"></i>
+                        <input type="text" x-model="searchQuery" readonly placeholder="Ad Soyad..." class="w-full h-12 md:h-14 xl:h-16 pl-10 md:pl-12 xl:pl-14 pr-4 bg-white/70 backdrop-blur-md border-2 md:border-[3px] border-slate-200 rounded-xl md:rounded-[20px] text-lg md:text-2xl xl:text-3xl font-black text-slate-800 focus:border-brand-green outline-none transition text-center shadow-inner">
+                    </div>
+                    <button @click="doSearch" class="kiosk-btn h-12 md:h-14 xl:h-16 px-6 md:px-8 bg-gradient-to-r from-brand-green to-emerald-800 text-white rounded-xl md:rounded-[20px] font-black text-lg md:text-2xl shadow-md shadow-brand-green/30 flex items-center justify-center gap-2 shrink-0">
+                        <i class="fa-solid fa-search"></i> ARA
+                    </button>
+                </div>
+            </div>
+
+            <!-- Keyboard -->
+            <div class="glass-panel rounded-2xl md:rounded-[30px] p-3 md:p-6 flex flex-col gap-2 md:gap-3 shrink-0 mx-auto w-full max-w-5xl mt-auto">
+                <template x-for="row in keyboardLayout">
+                    <div class="flex justify-center gap-1 md:gap-3 lg:gap-4">
+                        <template x-for="key in row">
+                            <button @click="pressKey(key)" class="keyboard-key flex-1 min-w-[28px] md:min-w-[48px]" x-text="key"></button>
+                        </template>
+                    </div>
+                </template>
+                <div class="flex justify-center gap-1 md:gap-3 lg:gap-4 mt-1 md:mt-2">
+                    <button @click="searchQuery = ''" class="keyboard-key w-12 md:w-20 xl:w-32 bg-gradient-to-b from-red-50 to-red-100 border-red-300 border-b-[#fca5a5] text-red-600 shadow-red-200"><i class="fa-solid fa-trash"></i></button>
+                    <button @click="pressKey(' ')" class="keyboard-key flex-1 text-slate-400 text-sm md:text-xl xl:text-2xl">B O Ş L U K</button>
+                    <button @click="searchQuery = searchQuery.slice(0, -1)" class="keyboard-key w-12 md:w-20 xl:w-32 bg-gradient-to-b from-orange-50 to-orange-100 border-orange-300 border-b-[#fdba74] text-orange-600 shadow-orange-200"><i class="fa-solid fa-delete-left"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: Results -->
+        <div x-show="step === 2" x-cloak x-transition.opacity.duration.500ms class="flex-1 min-h-0 flex flex-col glass-panel rounded-2xl md:rounded-[30px] overflow-hidden w-full h-full">
+            <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 md:p-6 flex flex-col md:flex-row items-center justify-between shrink-0 gap-2 md:gap-0">
+                <h3 class="text-xl md:text-3xl font-black"><span x-text="results.length" class="text-brand-green"></span> Kayıt Bulundu</h3>
+                <span class="text-slate-300 text-md md:text-2xl font-medium">Aranan: <span x-text="searchQuery" class="font-bold text-white"></span></span>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6 content-start">
+                <template x-for="res in results" :key="res.id">
+                    <button @click="showDetail(res)" class="kiosk-btn text-left p-4 md:p-6 bg-white/70 backdrop-blur-md border-2 md:border-4 border-white rounded-2xl md:rounded-[25px] hover:border-brand-green shadow-lg md:shadow-xl transition flex flex-col gap-2 md:gap-4">
+                        <span class="text-xl md:text-3xl font-black text-slate-800 tracking-tight" x-text="res.ad + ' ' + res.soyad"></span>
+                        <div class="flex flex-col md:flex-row gap-2 md:gap-6 text-md md:text-xl font-bold text-slate-500">
+                            <span class="flex items-center gap-2 md:gap-3"><i class="fa-solid fa-calendar-xmark text-slate-400"></i> <span x-text="res.olum_tarihi || 'Bilinmiyor'"></span></span>
+                            <span class="flex items-center gap-2 md:gap-3"><i class="fa-solid fa-map-location-dot text-brand-green"></i> <span x-text="res.mezarlik_adi"></span></span>
+                        </div>
+                    </button>
+                </template>
+                <div x-show="results.length === 0" class="col-span-1 xl:col-span-2 py-20 md:py-40 text-center">
+                    <div class="w-24 h-24 md:w-48 md:h-48 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-8 shadow-inner border border-slate-200">
+                        <i class="fa-solid fa-folder-open text-4xl md:text-8xl text-slate-300"></i>
+                    </div>
+                    <h3 class="text-3xl md:text-5xl font-black text-slate-600">Sonuç Bulunamadı</h3>
+                    <p class="text-slate-400 mt-4 md:mt-6 text-xl md:text-3xl">Lütfen yazılışı kontrol edip tekrar deneyin.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: Detail & Map -->
+        <div x-show="step === 3" x-cloak x-transition.opacity.duration.500ms class="flex-1 min-h-0 flex flex-col gap-4 md:gap-6 w-full h-full justify-start">
+            <!-- Info Card -->
+            <div class="glass-panel rounded-2xl md:rounded-[30px] p-4 md:p-5 flex flex-col xl:flex-row items-center justify-between shrink-0 gap-4 xl:gap-6">
+                <!-- User Details & Image -->
+                <div class="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-6 text-center md:text-left">
+                    <template x-if="selectedImage">
+                        <div @click="showImagePopup = true" class="relative cursor-pointer group">
+                            <img :src="selectedImage" class="w-16 h-16 md:w-28 md:h-28 rounded-2xl object-cover shadow-md border-2 border-white shrink-0 transition-transform transform group-hover:scale-105">
+                            <div class="absolute inset-0 bg-black/30 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <i class="fa-solid fa-magnifying-glass-plus text-white text-xl md:text-3xl drop-shadow-md"></i>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!selectedImage">
+                        <div class="w-16 h-16 md:w-28 md:h-28 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-2xl md:text-4xl shadow-inner border-2 border-white shrink-0">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                    </template>
+                    <div class="flex flex-col justify-center h-full pt-1">
+                        <h2 class="text-2xl md:text-4xl font-black text-slate-800 mb-1 md:mb-2 tracking-tight" x-text="selected.ad + ' ' + selected.soyad"></h2>
+                        <p class="text-md md:text-xl font-bold text-slate-500">
+                            <span x-text="selected.mezarlik_adi"></span> 
+                            <span class="text-brand-green mx-2 hidden md:inline">&bull;</span><br class="md:hidden" />
+                            <span class="text-brand-green" x-text="(selected.ada_no_text||selected.ada_no||'') + '. Ada / ' + (selected.parsel_no_text||selected.parsel_no||'') + '. Parsel'"></span>
+                        </p>
+                    </div>
+                </div>
+                <!-- Actions (QR & Draw Route) -->
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-3 w-full xl:w-auto">
+                    <!-- Fatiha Oku Button (Toggleable) -->
+                    <button x-show="enableFatiha" @click="showFatihaModal = true; $refs.fatihaAudio.currentTime = 0; $refs.fatihaAudio.play().catch(e=>{})" class="kiosk-btn h-20 md:h-24 px-6 md:px-10 bg-gradient-to-r from-sky-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-[24px] font-black shadow-lg shadow-blue-900/20 flex items-center gap-4 border border-blue-500/30 transition-all">
+                        <div class="bg-white/20 p-3 md:p-4 rounded-full flex items-center justify-center">
+                            <i class="fa-solid fa-book-open text-2xl md:text-3xl"></i>
+                        </div>
+                        <div class="text-left leading-tight">
+                            <span class="text-sm md:text-base font-bold text-blue-100 block">Ruhuna</span>
+                            <span class="text-xl md:text-2xl font-black text-white">Fatiha Oku</span>
+                        </div>
+                    </button>
+                    <!-- Kiosk'ta Çiz Button -->
+                    <button @click="drawRoute" class="kiosk-btn h-20 md:h-24 px-6 md:px-10 bg-gradient-to-r from-brand-green to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-[24px] font-black shadow-lg shadow-green-900/20 flex items-center gap-4 border border-green-500/30 transition-all">
+                        <div class="bg-white/20 p-3 md:p-4 rounded-full flex items-center justify-center">
+                            <i class="fa-solid fa-route text-2xl md:text-3xl"></i>
+                        </div>
+                        <div class="text-left leading-tight">
+                            <span class="text-sm md:text-base font-bold text-green-100 block">Ekranda</span>
+                            <span class="text-xl md:text-2xl font-black text-white">Yol Tarifi</span>
+                        </div>
+                    </button>
+
+                    <!-- Telefondan Yol Tarifi (QR) Minimalist -->
+                    <div x-show="showQR" class="h-20 md:h-24 flex items-center gap-4 bg-white p-2 md:p-3 pr-6 md:pr-8 rounded-[24px] border border-slate-200 shadow-sm">
+                        <canvas id="qrCodeCanvas" class="w-16 h-16 md:w-20 md:h-20 rounded-[16px] border border-slate-100"></canvas>
+                        <div class="text-left leading-tight">
+                            <span class="text-sm md:text-base font-bold text-slate-400 block">Telefonda</span>
+                            <span class="text-xl md:text-2xl font-black text-slate-800">QR Okutun</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Map Card -->
+            <div class="flex-1 min-h-0 glass-panel rounded-2xl md:rounded-[30px] relative border-[3px] md:border-[4px] border-white p-1">
+                <div id="kioskMap" class="w-full h-full rounded-xl overflow-hidden md:rounded-[25px] z-10"></div>
+            </div>
+        </div>
+        
+        <!-- Ads Rotator -->
+        <footer class="h-24 md:h-28 xl:h-[100px] bg-white/40 backdrop-blur-3xl rounded-2xl md:rounded-[20px] border border-white/60 relative shrink-0 shadow-sm p-2 mt-2" x-show="step !== 0" x-transition>
+            <div class="w-full h-full rounded-xl md:rounded-[16px] overflow-hidden relative shadow-inner">
+                <template x-for="(ad, idx) in kioskAds" :key="idx">
+                    <img :src="ad.startsWith('http') ? ad : '../' + ad" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 pointer-events-none" :class="currentAdIndex === idx ? 'opacity-100' : 'opacity-0'">
+                </template>
+                <div x-show="kioskAds.length === 0" class="absolute inset-0 flex flex-col gap-1 items-center justify-center bg-slate-100 text-slate-400">
+                    <i class="fa-regular fa-images text-xl md:text-3xl opacity-40"></i>
+                    <span class="text-xs md:text-lg font-bold">Belediye Duyuru Ekranı</span>
+                </div>
+            </div>
+        </footer>
+
+    </main>
+
+    <!-- Image Popup Modal -->
+    <div x-show="showImagePopup" x-cloak x-transition.opacity.duration.300ms class="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8 backdrop-blur-md bg-black/80" @click="showImagePopup = false">
+        <div class="relative max-w-5xl w-full max-h-[90vh] flex items-center justify-center">
+            <img :src="selectedImage" class="max-w-full max-h-[85vh] rounded-2xl md:rounded-[30px] shadow-2xl border-4 md:border-8 border-white object-contain bg-slate-900 pointer-events-none">
+            <button @click.stop="showImagePopup = false" class="absolute -top-3 -right-3 md:-top-5 md:-right-5 w-10 h-10 md:w-14 md:h-14 bg-white text-slate-800 hover:text-red-600 hover:bg-red-50 rounded-full flex items-center justify-center shadow-2xl border-2 md:border-4 border-slate-200 text-xl md:text-2xl transition-all transform hover:scale-110 active:scale-95">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Fatiha Modal -->
+    <div x-show="showFatihaModal" x-cloak x-transition.opacity.duration.300ms class="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8 backdrop-blur-md bg-black/80" @click="showFatihaModal = false; $refs.fatihaAudio.pause()">
+        <div class="relative max-w-4xl w-full max-h-[90vh] bg-white rounded-3xl md:rounded-[40px] shadow-2xl overflow-hidden flex flex-col" @click.stop>
+            
+            <div class="bg-gradient-to-r from-sky-800 to-blue-900 p-6 md:p-8 text-center relative shrink-0">
+                <h2 class="text-3xl md:text-5xl font-black text-white">Fatiha Suresi</h2>
+                <button @click="showFatihaModal = false; $refs.fatihaAudio.pause()" class="absolute top-1/2 -translate-y-1/2 right-6 w-12 h-12 bg-white/20 hover:bg-white/40 text-white rounded-full flex items-center justify-center transition-all text-xl md:text-2xl">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 md:p-10 overflow-y-auto flex-1 flex flex-col gap-8 md:gap-12">
+                <div class="text-center">
+                    <p class="text-3xl md:text-5xl leading-loose font-arabic text-slate-800" dir="rtl" style="line-height: 2;">
+                        بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحٖيمِ<br/>
+                        اَلْحَمْدُ لِلّٰهِ رَبِّ الْعَالَمٖينَۙ ﴿١﴾ اَلرَّحْمٰنِ الرَّحٖيمِۙ ﴿٢﴾ مَالِكِ يَوْمِ الدّٖينِؕ ﴿٣﴾ اِيَّاكَ نَعْبُدُ وَاِيَّاكَ نَسْتَعٖينُؕ ﴿٤﴾ اِهْدِنَا الصِّرَاطَ الْمُسْتَقٖيمَۙ ﴿٥﴾ صِرَاطَ الَّذٖينَ اَنْعَمْتَ عَلَيْهِمْۙ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّٓالّٖينَࣖ ﴿٧﴾
+                    </p>
+                </div>
+                
+                <div class="space-y-4 text-center px-4 md:px-12">
+                    <h3 class="text-xl md:text-2xl font-black text-blue-900 uppercase tracking-widest border-b-2 border-blue-100 pb-2 inline-block">Okunuşu</h3>
+                    <p class="text-lg md:text-2xl leading-relaxed text-slate-700 font-medium">
+                        Bismillâhi’r-Rahmâni’r-Rahîm.<br/>
+                        Elhamdülillâhi rabbil'alemin. Errahmânir'rahim. Mâliki yevmiddin. İyyâke na'budü ve iyyâke neste'în, İhdinessırâtel müstakîm. Sırâtellezine en'amte aleyhim ğayrilmağdûbi aleyhim ve leddâllîn.
+                    </p>
+                </div>
+
+                <div class="space-y-4 text-center px-4 md:px-12 pb-4">
+                    <h3 class="text-xl md:text-2xl font-black text-blue-900 uppercase tracking-widest border-b-2 border-blue-100 pb-2 inline-block">Anlamı</h3>
+                    <p class="text-lg md:text-2xl leading-relaxed text-slate-600">
+                        Rahmân ve Rahîm olan Allah'ın adıyla.<br/>
+                        Hamd, âlemlerin Rabbi, Rahmân, Rahîm, hesap ve ceza gününün maliki Allah'a mahsustur. (Allahım!) Yalnız sana ibadet ederiz ve yalnız senden yardım dileriz. Bizi doğru yola, kendilerine nimet verdiklerinin yoluna ilet; gazaba uğrayanlarınkine ve sapıklarınkine değil.
+                    </p>
+                </div>
+            </div>
+
+            <div class="p-6 md:p-8 bg-slate-50 border-t border-slate-100 flex justify-center shrink-0">
+                <button @click="showFatihaModal = false; $refs.fatihaAudio.pause()" class="kiosk-btn px-12 py-4 md:py-5 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-bold text-xl md:text-2xl shadow-lg transition-all">
+                    Kapat
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- Fatiha Audio Element -->
+    <audio x-ref="fatihaAudio" src="https://server8.mp3quran.net/afs/001.mp3" preload="auto"></audio>
+
+<script>
+ function kioskApp() {
+ return {
+ settings: {
+ belediye_adi: 'Yükleniyor...',
+ logo_url: ''
+ },
+ mezarliklar: [],
+ kioskAds: [],
+ currentAdIndex: 0,
+ adInterval: null,
+ 
+ showSetup: false,
+ kioskLat: null,
+ kioskLng: null,
+ isLocating: false,
+ 
+ enableFatiha: true, // İstenildiğinde kapatılabilir (false yapılır)
+ isOffline: !navigator.onLine,
+ showFatihaModal: false,
+
+ step: 0, // 0: Welcome, 1: Search, 2: Results, 3: Detail
+ searchQuery: '',
+ results: [],
+ selected: {},
+ selectedImage: null,
+ showImagePopup: false,
+ showQR: false,
+ qrInstance: null,
+ 
+ map: null,
+ markerLayer: null,
+ routeLine: null,
+ kioskMarkerObj: null,
+ graveMarkerObj: null,
+ 
+ idleTimer: null,
+ idleTimeout: 60000, // 60 saniye hareketsizlik
+
+ keyboardLayout: [
+ ['Q','W','E','R','T','Y','U','I','O','P','Ğ','Ü'],
+ ['A','S','D','F','G','H','J','K','L','Ş','İ'],
+ ['Z','X','C','V','B','N','M','Ö','Ç']
+ ],
+
+ async init() {
+  window.addEventListener('offline', () => { this.isOffline = true; });
+  window.addEventListener('online', () => { this.isOffline = false; });
+  await this.loadSettings();
+ if (this.settings.kiosk_lat && this.settings.kiosk_lng) {
+ this.kioskLat = parseFloat(this.settings.kiosk_lat);
+ this.kioskLng = parseFloat(this.settings.kiosk_lng);
+ this.showSetup = false;
+ this.startApp();
+ } else {
+ this.showSetup = true;
+ }
+ },
+
+ async loadSettings() {
+ try {
+ const res = await fetch('../api/index.php?action=kiosk_settings');
+ const json = await res.json();
+ if (json.status === 'success' && json.data) {
+ this.settings.belediye_adi = json.data.belediye_adi || 'MBS Kiosk';
+ this.settings.logo_url = json.data.logo_url ? (json.data.logo_url.startsWith('http') ? json.data.logo_url : '../' + json.data.logo_url) : '';
+ this.settings.kiosk_lat = json.data.kiosk_lat;
+ this.settings.kiosk_lng = json.data.kiosk_lng;
+ 
+ if (json.data.kiosk_ads) {
+ try {
+ this.kioskAds = JSON.parse(json.data.kiosk_ads);
+ } catch(e){}
+ }
+ }
+ } catch(e) {}
+ },
+
+ saveKioskLocation() {
+ this.isLocating = true;
+ if ("geolocation" in navigator) {
+ navigator.geolocation.getCurrentPosition(async (pos) => {
+ this.kioskLat = pos.coords.latitude;
+ this.kioskLng = pos.coords.longitude;
+ try {
+ await fetch('../api/index.php?action=kiosk_save_location', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ lat: this.kioskLat, lng: this.kioskLng })
+ });
+ } catch(e) { console.error("Konum veritabanına kaydedilemedi:", e); }
+ this.showSetup = false;
+ this.isLocating = false;
+ this.startApp();
+ }, (err) => {
+ alert("Konum alınamadı. Lütfen cihazın konum (GPS) servislerinin açık ve tarayıcının konum iznine sahip olduğuna emin olun.");
+ this.isLocating = false;
+ }, { enableHighAccuracy: true });
+ } else {
+ alert("Bu cihazda konum özelliği desteklenmiyor.");
+ this.isLocating = false;
+ }
+ },
+
+ startApp() {
+ this.startAdRotator();
+ this.resetIdleTimer();
+ this.initMap();
+ },
+
+ startAdRotator() {
+ if (this.kioskAds.length > 1) {
+ this.adInterval = setInterval(() => {
+ this.currentAdIndex = (this.currentAdIndex + 1) % this.kioskAds.length;
+ }, 10000);
+ }
+ },
+
+ resetIdleTimer() {
+ if (this.idleTimer) clearTimeout(this.idleTimer);
+ this.idleTimer = setTimeout(() => {
+ this.resetToHome();
+ }, this.idleTimeout);
+ },
+
+ resetToHome() {
+ this.step = 0;
+ this.searchQuery = '';
+ this.results = [];
+ this.showImagePopup = false;
+ this.showFatihaModal = false;
+ if (this.$refs.fatihaAudio) { this.$refs.fatihaAudio.pause(); }
+ if (this.map) {
+ this.map.closePopup();
+ if (this.markerLayer) this.map.removeLayer(this.markerLayer);
+ if (this.routeLine) this.map.removeLayer(this.routeLine);
+ if (this.kioskMarkerObj) this.map.removeLayer(this.kioskMarkerObj);
+ if (this.graveMarkerObj) this.map.removeLayer(this.graveMarkerObj);
+ }
+ },
+
+ pressKey(key) {
+ this.searchQuery += key;
+ },
+
+ async doSearch() {
+ if (this.searchQuery.length < 2) return;
+ try {
+ const res = await fetch(`../api/index.php?action=vatandas_sorgu&q=${encodeURIComponent(this.searchQuery)}`);
+ const text = await res.text();
+ try {
+ const json = JSON.parse(text);
+ if (json.status === 'success') {
+ this.results = json.data || [];
+ this.step = 2;
+ } else {
+ alert("Sunucu hatası: " + (json.message || 'Bilinmeyen hata'));
+ }
+ } catch (err) {
+ alert("Sunucudan geçersiz yanıt geldi: " + text.substring(0, 100));
+ }
+ } catch(e) {
+ alert("Bağlantı hatası: " + e.message);
+ }
+ },
+
+ showDetail(res) {
+ this.selected = res;
+ 
+ let img = null;
+ if (res.gorsel_url) {
+ try {
+ let parsed = JSON.parse(res.gorsel_url);
+ img = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : parsed;
+ } catch(e) {
+ img = res.gorsel_url;
+ }
+ }
+ this.selectedImage = img ? (img.startsWith('http') ? img : '../' + img) : null;
+ 
+ this.step = 3;
+
+ setTimeout(() => {
+ if (res.lat && res.lng) {
+ const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${res.lat},${res.lng}`;
+ if (!this.qrInstance) {
+ this.qrInstance = new QRious({
+ element: document.getElementById('qrCodeCanvas'),
+ size: 250,
+ background: 'white',
+ foreground: '#166534'
+ });
+ }
+ this.qrInstance.value = mapUrl;
+ this.showQR = true;
+ } else {
+ this.showQR = false;
+ }
+
+ if (this.map) {
+ this.map.invalidateSize();
+  if (this.markerLayer) this.map.removeLayer(this.markerLayer);
+  if (this.routeLine) this.map.removeLayer(this.routeLine);
+  if (this.kioskMarkerObj) this.map.removeLayer(this.kioskMarkerObj);
+  if (this.graveMarkerObj) this.map.removeLayer(this.graveMarkerObj);
+
+  if (res.lat && res.lng) {
+  const latLng = [parseFloat(res.lat), parseFloat(res.lng)];
+  const tempGraveIcon = L.divIcon({
+      html: '<div style="background:#059669; color:white; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 6px 12px rgba(0,0,0,0.3); font-size:20px;"><i class="fa-solid fa-crosshairs"></i></div>',
+      className: '',
+      iconSize: [44, 44],
+      iconAnchor: [22, 22]
+  });
+  this.markerLayer = L.marker(latLng, {icon: tempGraveIcon}).addTo(this.map);
+  this.map.setView(latLng, 19);
+  } else {
+  this.centerMapToKioskLocation();
+  }
+ }
+ }, 600); // 500ms transition süresini beklemesi için artırıldı
+ },
+
+ initMap() {
+ if (this.map) return;
+ 
+ this.map = L.map('kioskMap', {
+ zoomControl: false,
+ attributionControl: false,
+ dragging: true,
+ touchZoom: true,
+ scrollWheelZoom: false,
+ doubleClickZoom: true,
+ boxZoom: false
+ });
+ 
+ L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+ maxZoom: 22,
+ subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+ }).addTo(this.map);
+
+ this.centerMapToKioskLocation();
+ },
+
+ centerMapToKioskLocation() {
+ if (!this.map) return;
+ let centerLat = this.kioskLat || 40.6520;
+ let centerLng = this.kioskLng || 29.3520;
+ this.map.setView([centerLat, centerLng], 17);
+ },
+
+ drawRoute() {
+ if (!this.map || !this.selected.lat || !this.selected.lng) {
+ alert("Bu mezarın konum bilgisi bulunmuyor.");
+ return;
+ }
+  if (this.routeLine) this.map.removeLayer(this.routeLine);
+  if (this.markerLayer) this.map.removeLayer(this.markerLayer);
+  if (this.kioskMarkerObj) this.map.removeLayer(this.kioskMarkerObj);
+  if (this.graveMarkerObj) this.map.removeLayer(this.graveMarkerObj);
+
+  const dest = [parseFloat(this.selected.lat), parseFloat(this.selected.lng)];
+  const start = [this.kioskLat || 40.6520, this.kioskLng || 29.3520];
+  
+  this.routeLine = L.polyline([start, dest], {
+  color: '#3b82f6', 
+  weight: 8,
+  opacity: 0.9,
+  dashArray: '15, 15',
+  lineCap: 'round'
+  }).addTo(this.map);
+
+  const kioskIcon = L.divIcon({
+      html: '<div style="background:#1d4ed8; color:white; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 6px 12px rgba(0,0,0,0.3); font-size:20px;"><i class="fa-solid fa-location-dot"></i></div>',
+      className: '',
+      iconSize: [44, 44],
+      iconAnchor: [22, 22]
+  });
+
+  const graveIcon = L.divIcon({
+      html: '<div style="background:#059669; color:white; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 6px 12px rgba(0,0,0,0.3); font-size:20px;"><i class="fa-solid fa-flag-checkered"></i></div>',
+      className: '',
+      iconSize: [44, 44],
+      iconAnchor: [22, 22]
+  });
+
+  this.kioskMarkerObj = L.marker(start, {icon: kioskIcon}).addTo(this.map);
+  this.graveMarkerObj = L.marker(dest, {icon: graveIcon}).addTo(this.map);
+
+  // Üst menü ve alt bilgi kartının altında kalmaması için özel padding (boşluk) ayarı
+  this.map.fitBounds(this.routeLine.getBounds(), { 
+      paddingTopLeft: [100, 180],
+      paddingBottomRight: [100, 300],
+      maxZoom: 20 
+  });
+  }
+ }
+ }
+ </script>
+</body>
+</html>

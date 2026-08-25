@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <script>
+        if (localStorage.getItem('mbs_admin_logged') !== 'true') {
+            window.location.replace('login.html');
+        }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MBS Yönetim Paneli</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { brand: { navy: '#1e3a8a', light: '#eff6ff' } },
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js & Plugins -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/mask@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- SheetJS (Excel Parsing) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+    <!-- Scripts -->
+    <script src="js/api.js?v=2.1.1"></script>
+    <script src="js/ui.js?v=2.1.1"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .glass-header { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid rgba(229, 231, 235, 0.6); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02); }
+        .scrollable-body::-webkit-scrollbar { width: 6px; }
+        .scrollable-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden" x-data="adminApp">
+
+    <div class="flex h-[100dvh] w-full fixed inset-0">        <!-- Sidebar -->
+        <aside class="bg-slate-900 text-slate-300 transition-all duration-300 flex flex-col shadow-2xl z-40 absolute inset-y-0 left-0 md:relative border-r border-slate-800"
+               :class="sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0 md:w-20'">
+            
+            <!-- Desktop/Expanded Logo Area -->
+            <div class="h-20 flex items-center border-b border-slate-800/60 px-4 overflow-hidden gap-4 shrink-0 bg-slate-900/50">
+                <template x-if="systemSettings.logo_url">
+                    <img :src="systemSettings.logo_url.startsWith('http') ? systemSettings.logo_url : '../' + systemSettings.logo_url" alt="Logo" class="w-11 h-11 object-contain shrink-0 drop-shadow-md">
+                </template>
+                <template x-if="!systemSettings.logo_url">
+                    <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-navy to-blue-800 flex items-center justify-center shrink-0 shadow-lg border border-blue-700/50">
+                        <i class="fa-solid fa-mosque text-white text-xl"></i>
+                    </div>
+                </template>
+                <div class="flex flex-col leading-tight" x-show="sidebarOpen" x-transition>
+                    <span class="text-[13px] font-extrabold text-white uppercase tracking-wider line-clamp-2" x-text="systemSettings.belediye_adi || 'Belediye'" title="Belediye Adı"></span>
+                    <span class="text-[11px] font-medium text-slate-400 mt-0.5">Mezarlık Bilgi Sistemi</span>
+                </div>
+            </div>
+            
+            <nav class="flex-1 py-6 flex flex-col gap-1.5 px-3 overflow-y-auto scrollable-body">
+                <a href="#" @click.prevent="activePage = 'dashboard'; loadData(); if(window.innerWidth < 768) sidebarOpen = false;" 
+                   :class="activePage === 'dashboard' ? 'bg-brand-navy text-white shadow-md shadow-brand-navy/20' : 'hover:bg-slate-800/80 hover:text-white'" 
+                   class="flex items-center px-3 py-3 rounded-xl transition-all duration-200 group">
+                    <i class="fa-solid fa-chart-line w-6 text-center text-lg" :class="activePage === 'dashboard' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'"></i>
+                    <span class="ml-3 whitespace-nowrap font-medium" x-show="sidebarOpen">Dashboard</span>
+                </a>
+                
+                <a href="#" @click.prevent="activePage = 'meftalar'; loadData(); if(window.innerWidth < 768) sidebarOpen = false;" 
+                   :class="activePage === 'meftalar' ? 'bg-brand-navy text-white shadow-md shadow-brand-navy/20' : 'hover:bg-slate-800/80 hover:text-white'" 
+                   class="flex items-center px-3 py-3 rounded-xl transition-all duration-200 group">
+                    <i class="fa-solid fa-list w-6 text-center text-lg" :class="activePage === 'meftalar' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'"></i>
+                    <span class="ml-3 whitespace-nowrap font-medium" x-show="sidebarOpen">Mefta Listesi</span>
+                </a>
+
+                <template x-if="isAdmin">
+                    <a href="#" @click.prevent="activePage = 'settings'; activeSettingsTab = 'general'; loadSettings(); loadMezarliklar(); if(window.innerWidth < 768) sidebarOpen = false;" 
+                       :class="activePage === 'settings' ? 'bg-brand-navy text-white shadow-md shadow-brand-navy/20' : 'hover:bg-slate-800/80 hover:text-white'" 
+                       class="flex items-center px-3 py-3 rounded-xl transition-all duration-200 group">
+                        <i class="fa-solid fa-cogs w-6 text-center text-lg" :class="activePage === 'settings' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'"></i>
+                        <span class="ml-3 whitespace-nowrap font-medium" x-show="sidebarOpen">Sistem Ayarları</span>
+                    </a>
+                </template>
+
+                <template x-if="currentUser.can_export || isAdmin">
+                <a href="#" @click.prevent="activePage = 'raporlar'; loadRaporlar(); if(window.innerWidth < 768) sidebarOpen = false;" 
+                   :class="activePage === 'raporlar' ? 'bg-brand-navy text-white shadow-md shadow-brand-navy/20' : 'hover:bg-slate-800/80 hover:text-white'" 
+                   class="flex items-center px-3 py-3 rounded-xl transition-all duration-200 group">
+                    <i class="fa-solid fa-chart-pie w-6 text-center text-lg" :class="activePage === 'raporlar' ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'"></i>
+                    <span class="ml-3 whitespace-nowrap font-medium" x-show="sidebarOpen">Raporlar</span>
+                </a>
+                </template>
+                
+                <div class="h-px bg-slate-800 my-4 mx-3 opacity-50"></div>
+                
+                <template x-if="currentUser.can_add || isAdmin">
+                <div x-data="{ openSahaMenu: false }" x-init="$watch('activePage', val => { if(val === 'sayim' || val === 'saha_sayim_listesi') openSahaMenu = true; })">
+                    <a href="#" @click.prevent="openSahaMenu = !openSahaMenu" 
+                       :class="(activePage === 'sayim' || activePage === 'saha_sayim_listesi') ? 'bg-brand-navy/30 text-white' : 'hover:bg-slate-800/80 hover:text-white'" 
+                       class="flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-200 group">
+                        <div class="flex items-center">
+                            <i class="fa-solid fa-camera w-6 text-center text-lg" :class="(activePage === 'sayim' || activePage === 'saha_sayim_listesi') ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'"></i>
+                            <span class="ml-3 whitespace-nowrap font-medium" x-show="sidebarOpen">Saha Sayım</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down text-sm transition-transform text-slate-400" :class="openSahaMenu ? 'rotate-180' : ''" x-show="sidebarOpen"></i>
+                    </a>
+                    <div x-show="openSahaMenu && sidebarOpen" x-transition class="pl-10 pr-3 py-2 space-y-1">
+                        <a href="#" @click.prevent="activePage = 'sayim'; loadMezarliklar(); if(window.innerWidth < 768) sidebarOpen = false;" 
+                           :class="activePage === 'sayim' ? 'text-white font-bold' : 'text-slate-400 hover:text-white'" class="flex items-center py-2 text-sm transition">
+                           <i class="fa-solid fa-plus mr-2 text-xs w-4"></i> Yeni Sayım Ekle
+                        </a>
+                        <template x-if="isAdmin || currentUser.can_approve == 1">
+                            <a href="#" @click.prevent="activePage = 'saha_sayim_listesi'; loadData(); if(window.innerWidth < 768) sidebarOpen = false;" 
+                               :class="activePage === 'saha_sayim_listesi' ? 'text-white font-bold' : 'text-slate-400 hover:text-white'" class="flex items-center py-2 text-sm transition">
+                               <i class="fa-solid fa-list-check mr-2 text-xs w-4"></i> Onay Bekleyenler
+                            </a>
+                        </template>
+                    </div>
+                </div>
+                </template>
+
+                <a href="../index.html" target="_blank" class="flex items-center px-3 py-3 rounded-xl text-slate-400 hover:bg-slate-800/80 hover:text-white transition-all duration-200 mt-2">
+                    <i class="fa-solid fa-globe w-6 text-center text-lg"></i>
+                    <span class="ml-3 whitespace-nowrap font-medium" x-show="sidebarOpen">Siteye Git</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Mobile Sidebar Overlay -->
+        <div x-show="sidebarOpen" class="fixed inset-0 bg-slate-900/50 z-10 md:hidden" @click="sidebarOpen = false" x-transition.opacity></div>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+            
+            <!-- Header -->
+            <header class="h-[76px] glass-header flex items-center justify-between px-4 sm:px-8 z-30 shrink-0 sticky top-0">
+                <div class="flex items-center gap-4">
+                    <button @click="sidebarOpen = !sidebarOpen" class="text-slate-500 hover:text-brand-navy hover:bg-slate-100 transition p-2.5 rounded-xl">
+                        <i class="fa-solid fa-bars text-lg"></i>
+                    </button>
+                    <!-- Mobile Logo (Hidden on Desktop) -->
+                    <div class="md:hidden flex items-center gap-3 border-r border-slate-200 pr-4 mr-2">
+                        <template x-if="systemSettings.logo_url">
+                            <img :src="systemSettings.logo_url.startsWith('http') ? systemSettings.logo_url : '../' + systemSettings.logo_url" alt="Logo" class="h-10 w-auto object-contain">
+                        </template>
+                        <template x-if="!systemSettings.logo_url">
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-navy to-blue-800 flex items-center justify-center shadow-sm">
+                                <i class="fa-solid fa-mosque text-white text-sm"></i>
+                            </div>
+                        </template>
+                    </div>
+                    <!-- Sayfa Başlığı -->
+                    <div class="flex flex-col">
+                        <h1 class="text-lg sm:text-2xl font-extrabold text-slate-800 tracking-tight" x-text="activePage === 'dashboard' ? 'Dashboard' : (activePage === 'settings' ? 'Sistem Ayarları' : (activePage === 'sayim' ? 'Saha Sayım' : (activePage === 'raporlar' ? 'Raporlar' : 'Mefta Listesi')))"></h1>
+                        <span class="text-xs font-medium text-slate-500 hidden sm:block truncate max-w-[200px] md:max-w-md lg:max-w-lg" x-text="'MBS Yönetim Paneli - ' + (systemSettings.belediye_adi || 'Sistem')" :title="systemSettings.belediye_adi"></span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <!-- User Info -->
+                    <div class="hidden sm:flex items-center gap-3 bg-slate-100 px-4 py-1.5 rounded-full border border-slate-200">
+                        <div class="w-8 h-8 rounded-full bg-brand-navy text-white flex items-center justify-center text-sm">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-slate-800 leading-tight" x-text="currentUser.ad_soyad || 'Yetkili'"></span>
+                            <span class="text-xs font-medium text-slate-500 leading-tight" x-text="currentUser.role === 'superadmin' ? 'Süper Admin' : 'Sistem Kullanıcısı'"></span>
+                        </div>
+                    </div>
+                    <!-- Logout Button -->
+                    <button @click="logout()" class="text-slate-500 hover:text-red-600 bg-white border border-slate-200 hover:bg-red-50 hover:border-red-200 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-sign-out-alt"></i> <span class="hidden sm:inline text-sm font-bold">Çıkış Yap</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <div class="flex-1 w-full overflow-y-auto overflow-x-hidden scrollable-body p-4 sm:p-6">
+                
+                <!-- DASHBOARD PAGE -->
+                <div x-show="activePage === 'dashboard'" x-transition.opacity>
+                
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                            <i class="fa-solid fa-users text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium mb-1">Toplam Kayıt</p>
+                            <h3 class="text-2xl font-bold text-slate-800" x-text="stats.total">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                            <i class="fa-solid fa-map-location-dot text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium mb-1">Mezarlık Sayısı</p>
+                            <h3 class="text-2xl font-bold text-slate-800" x-text="stats.toplam_mezarlik || '0'">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 shrink-0">
+                            <i class="fa-solid fa-clock-rotate-left text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium mb-1">Son Defin</p>
+                            <h3 class="text-lg font-bold text-slate-800 mt-1" x-text="stats.son_defin_tarihi || '-'">-</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Map -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[60vh]">
+                    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+                        <i class="fa-solid fa-map text-brand-navy text-lg"></i>
+                        <h3 class="font-bold text-slate-800">Mezarlıklar ve Defin Haritası</h3>
+                    </div>
+                    <div id="dashboardMap" class="flex-1 w-full relative z-10"></div>
+                </div>
+
+                </div>
+                <!-- END DASHBOARD PAGE -->
+
+                <!-- MEFTALAR / SAHA SAYIM LİSTESİ PAGE -->
+                <div x-show="activePage === 'meftalar' || activePage === 'saha_sayim_listesi'" x-cloak x-transition.opacity class="flex flex-col h-full gap-4">
+                
+                <h2 class="text-2xl font-black text-slate-800" x-text="activePage === 'saha_sayim_listesi' ? 'Saha Sayım Onayları' : 'Mefta Listesi'"></h2>
+
+                <!-- Table Controls -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1 w-full">
+                    <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col gap-4 bg-slate-50/50">
+                        <!-- Onay Durumu Filtreleri (Sadece Saha Sayım Onayları sayfasında ve yetkili ise) -->
+                        <template x-if="(isAdmin || currentUser.can_approve == 1) && activePage === 'saha_sayim_listesi'">
+                            <div class="flex gap-2 flex-wrap">
+                                <button @click="onayFilter = ''; loadData();" :class="onayFilter === '' ? 'bg-brand-navy text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'" class="px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                                    <i class="fa-solid fa-list"></i> Tümü
+                                </button>
+                                <button @click="onayFilter = 'bekliyor'; loadData();" :class="onayFilter === 'bekliyor' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-orange-600 border border-orange-200 hover:bg-orange-50'" class="px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                                    <i class="fa-solid fa-clock"></i> Onay Bekleyenler
+                                </button>
+                                <button @click="onayFilter = 'onaylandi'; loadData();" :class="onayFilter === 'onaylandi' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-50'" class="px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                                    <i class="fa-solid fa-check-double"></i> Onaylı
+                                </button>
+                                <button @click="onayFilter = 'reddedildi'; loadData();" :class="onayFilter === 'reddedildi' ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-red-600 border border-red-200 hover:bg-red-50'" class="px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                                    <i class="fa-solid fa-xmark"></i> Reddedildi
+                                </button>
+                            </div>
+                        </template>
+                        <!-- Arama & İşlem Butonları -->
+                        <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+                        <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-1">
+                            <div class="relative w-full max-w-md">
+                                <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                <input type="text" x-model="searchQuery" @keyup.enter="loadData()" placeholder="İsim, Soyisim veya Ada/Parsel ara..." 
+                                       class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition">
+                            </div>
+                            <button @click="loadData()" class="px-6 py-2.5 bg-brand-navy text-white rounded-xl font-medium hover:bg-blue-800 transition shadow-sm flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-search"></i> Ara
+                            </button>
+                        </div>
+                        <div class="flex flex-wrap gap-2 w-full lg:w-auto justify-start sm:justify-end">
+                            <button @click="exportData('pdf')" class="px-4 py-2.5 bg-red-600/10 text-red-600 rounded-xl font-medium hover:bg-red-600 hover:text-white transition shadow-sm flex items-center gap-2">
+                                <i class="fa-solid fa-file-pdf"></i> <span class="hidden md:inline">PDF İndir</span>
+                            </button>
+                            <button @click="exportData('excel')" class="px-4 py-2.5 bg-emerald-600/10 text-emerald-600 rounded-xl font-medium hover:bg-emerald-600 hover:text-white transition shadow-sm flex items-center gap-2">
+                                <i class="fa-solid fa-file-excel"></i> <span class="hidden md:inline">Excel İndir</span>
+                            </button>
+                            <button @click="printQrBulk()" class="px-4 py-2.5 bg-purple-600/10 text-purple-600 rounded-xl font-medium hover:bg-purple-600 hover:text-white transition shadow-sm flex items-center gap-2" x-show="selectedIds.length > 0">
+                                <i class="fa-solid fa-qrcode"></i> <span class="hidden md:inline">Seçili QR Yazdır</span>
+                            </button>
+                            <button @click="bulkApprove('onaylandi')" class="px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition shadow-sm flex items-center gap-2 animate-fade-in" x-show="selectedIds.length > 0 && isAdmin">
+                                <i class="fa-solid fa-check-double"></i> <span x-text="'Seçilenleri Onayla (' + selectedIds.length + ')'"></span>
+                            </button>
+                            <button @click="bulkApprove('reddedildi')" class="px-4 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition shadow-sm flex items-center gap-2 animate-fade-in" x-show="selectedIds.length > 0 && isAdmin">
+                                <i class="fa-solid fa-xmark"></i> <span x-text="'Reddet (' + selectedIds.length + ')'"></span>
+                            </button>
+                            <template x-if="currentUser.can_add">
+                                <button @click="importExcel()" class="px-4 py-2.5 bg-brand-navy/10 text-brand-navy rounded-xl font-medium hover:bg-brand-navy hover:text-white transition shadow-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-file-import"></i> <span class="hidden md:inline">Toplu Yükle</span>
+                                </button>
+                            </template>
+                            <template x-if="currentUser.can_add">
+                                <button @click="openAddModal()" class="px-6 py-2.5 bg-brand-navy text-white rounded-xl font-medium hover:bg-blue-800 transition shadow-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-plus"></i> Yeni Kayıt
+                                </button>
+                            </template>
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- Table & Mobile Cards -->
+                    <div class="flex-1 w-full overflow-x-auto overflow-y-auto relative scrollable-body bg-slate-50 md:bg-white">
+                        
+                        <!-- DESKTOP TABLE -->
+                        <table class="w-full min-w-[900px] text-left border-collapse hidden md:table">
+                            <thead class="sticky top-0 bg-slate-100/90 backdrop-blur-md shadow-sm z-10">
+                                <tr>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200 w-12">
+                                        <input type="checkbox" @change="toggleAllSelection($event)" class="rounded text-brand-navy focus:ring-brand-navy cursor-pointer">
+                                    </th>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200">ID</th>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200">Ad Soyad</th>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200">Durum</th>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200">TC Kimlik No</th>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200">Mezarlık</th>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200">Defin Tarihi</th>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200">Ada / Parsel</th>
+                                    <th class="py-3 px-4 font-semibold text-slate-600 text-sm border-b border-slate-200 text-right">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-if="isLoading">
+                                    <tr><td colspan="9" class="text-center py-8 text-slate-500"><i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2 block"></i> Yükleniyor...</td></tr>
+                                </template>
+                                <template x-if="!isLoading && meftalar.length === 0">
+                                    <tr><td colspan="9" class="text-center py-8 text-slate-500">Kayıt bulunamadı.</td></tr>
+                                </template>
+                                <template x-for="item in meftalar" :key="item.id">
+                                    <tr class="hover:bg-slate-50 transition group">
+                                        <td class="py-3 px-4">
+                                            <input type="checkbox" :value="item.id" x-model="selectedIds" class="rounded text-brand-navy focus:ring-brand-navy cursor-pointer">
+                                        </td>
+                                        <td class="py-3 px-4 text-sm text-slate-500" x-text="item.id"></td>
+                                        <td class="py-3 px-4 text-sm font-medium text-slate-800">
+                                            <span x-text="item.ad + ' ' + item.soyad"></span>
+                                        </td>
+                                        <td class="py-3 px-4 text-sm">
+                                            <template x-if="item.onay_durumu === 'bekliyor'">
+                                                <span class="bg-orange-100 text-orange-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                                                    <i class="fa-solid fa-clock mr-1"></i>Bekliyor
+                                                </span>
+                                            </template>
+                                            <template x-if="item.onay_durumu === 'onaylandi'">
+                                                <span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                                                    <i class="fa-solid fa-check mr-1"></i>Onaylı
+                                                </span>
+                                            </template>
+                                            <template x-if="item.onay_durumu === 'reddedildi'">
+                                                <span class="bg-red-100 text-red-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                                                    <i class="fa-solid fa-xmark mr-1"></i>Reddedildi
+                                                </span>
+                                            </template>
+                                        </td>
+                                        <td class="py-3 px-4 text-sm text-slate-600" x-text="item.tc_no || '-'"></td>
+                                        <td class="py-3 px-4 text-sm text-slate-600" x-text="item.mezarlik_adi || 'Bilinmiyor'"></td>
+                                        <td class="py-3 px-4 text-sm text-slate-600" x-text="item.defin_tarihi"></td>
+                                        <td class="py-3 px-4 text-sm text-slate-600" x-text="(item.ada_no || '-') + ' / ' + (item.parsel_no || '-')"></td>
+                                        <td class="py-3 px-4 text-right flex justify-end gap-2">
+                                            <button @click="printQrSingle(item.id)" class="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center hover:bg-purple-100 transition tooltip" title="QR Etiket Yazdır">
+                                                <i class="fa-solid fa-qrcode"></i>
+                                            </button>
+                                            <button @click="openDocTemplateModal(item.id)" class="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-100 transition tooltip" title="Resmi Belge İndir">
+                                                <i class="fa-solid fa-file-contract"></i>
+                                            </button>
+                                            <button @click="openPreviewModal(item.id)" class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition tooltip" title="Görüntüle">
+                                                <i class="fa-solid fa-external-link-alt"></i>
+                                            </button>
+                                            <template x-if="(isAdmin || currentUser.can_approve == 1) && item.onay_durumu === 'bekliyor' && activePage === 'saha_sayim_listesi'">
+                                                <div class="flex items-center gap-2">
+                                                    <button @click="updateRecordStatus(item.id, 'onaylandi')" class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition tooltip" title="Onayla / Yayımla">
+                                                        <i class="fa-solid fa-check-double"></i>
+                                                    </button>
+                                                    <button @click="updateRecordStatus(item.id, 'reddedildi')" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition tooltip" title="Reddet">
+                                                        <i class="fa-solid fa-xmark"></i>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <template x-if="currentUser.can_edit">
+                                                <button @click="openEditModal(item.id)" class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition tooltip" title="Düzenle">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </button>
+                                            </template>
+                                            <template x-if="currentUser.can_delete">
+                                                <button @click="deleteRecord(item.id)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition tooltip" title="Sil">
+                                                    <i class="fa-solid fa-trash"></i>
+                                                </button>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+
+                        <!-- MOBILE CARDS -->
+                        <div class="md:hidden flex flex-col gap-3 p-4">
+                            <template x-if="isLoading">
+                                <div class="text-center py-8 text-slate-500"><i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2 block"></i> Yükleniyor...</div>
+                            </template>
+                            <template x-if="!isLoading && meftalar.length === 0">
+                                <div class="text-center py-8 text-slate-500">Kayıt bulunamadı.</div>
+                            </template>
+                            <template x-for="item in meftalar" :key="item.id">
+                                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 relative">
+                                    <div class="absolute top-4 right-4">
+                                        <input type="checkbox" :value="item.id" x-model="selectedIds" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy cursor-pointer">
+                                    </div>
+                                    <div class="mb-3 pr-8">
+                                        <h4 class="font-bold text-slate-800 text-lg" x-text="item.ad + ' ' + item.soyad"></h4>
+                                        <p class="text-sm text-slate-500" x-text="'ID: ' + item.id + ' | TC: ' + (item.tc_no || '-')"></p>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-y-2 text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                        <div>
+                                            <span class="block text-xs font-semibold text-slate-400">Mezarlık</span>
+                                            <span class="font-medium" x-text="item.mezarlik_adi || 'Bilinmiyor'"></span>
+                                        </div>
+                                        <div>
+                                            <span class="block text-xs font-semibold text-slate-400">Ada / Parsel</span>
+                                            <span class="font-medium" x-text="(item.ada_no || '-') + ' / ' + (item.parsel_no || '-')"></span>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <span class="block text-xs font-semibold text-slate-400">Defin Tarihi</span>
+                                            <span class="font-medium" x-text="item.defin_tarihi || '-'"></span>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                                        <button @click="openDocTemplateModal(item.id)" class="px-3 py-1.5 rounded-lg bg-teal-50 text-teal-600 font-medium text-sm flex items-center gap-1.5 hover:bg-teal-100 transition">
+                                            <i class="fa-solid fa-file-contract"></i> Belge
+                                        </button>
+                                        <button @click="printQrSingle(item.id)" class="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 font-medium text-sm flex items-center gap-1.5 hover:bg-purple-100 transition">
+                                            <i class="fa-solid fa-qrcode"></i> QR
+                                        </button>
+                                        <button @click="openPreviewModal(item.id)" class="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 font-medium text-sm flex items-center gap-1.5 hover:bg-indigo-100 transition">
+                                            <i class="fa-solid fa-external-link-alt"></i> İncele
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
+                                        <a :href="'../api/index.php?action=export_docx&id=' + item.id" target="_blank" class="w-10 py-2 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-100 transition tooltip" title="Defin Belgesi İndir (Word)">
+                                            <i class="fa-solid fa-file-word"></i>
+                                        </a>
+                                        <button @click="openPreviewModal(item.id)" class="flex-1 py-2 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition font-medium text-sm gap-2">
+                                            <i class="fa-solid fa-external-link-alt"></i> Gözat
+                                        </button>
+                                        <template x-if="currentUser.can_edit">
+                                            <button @click="openEditModal(item.id)" class="flex-1 py-2 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition font-medium text-sm gap-2">
+                                                <i class="fa-solid fa-pen"></i> Düzenle
+                                            </button>
+                                        </template>
+                                        <template x-if="currentUser.can_delete">
+                                            <button @click="deleteRecord(item.id)" class="w-10 py-2 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="mt-4 w-full flex flex-col lg:flex-row items-center justify-between bg-white px-4 sm:px-6 py-4 rounded-2xl shadow-sm border border-slate-200 gap-4">
+                    <div class="flex items-center gap-4 text-sm text-slate-500 w-full lg:w-auto justify-center lg:justify-start flex-wrap">
+                        <div class="flex items-center gap-2">
+                            <span>Göster:</span>
+                            <select x-model="pagination.limit" @change="pagination.currentPage = 1; loadData()" class="border border-slate-200 bg-slate-50 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:border-brand-navy focus:ring-1 focus:ring-brand-navy transition">
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <div class="hidden sm:block w-px h-4 bg-slate-300"></div>
+                        <div>
+                            Toplam <span class="font-bold text-brand-navy" x-text="pagination.totalRecords"></span> kayıttan 
+                            <span class="font-bold text-brand-navy" x-text="pagination.totalRecords === 0 ? 0 : ((pagination.currentPage - 1) * pagination.limit + 1)"></span> - 
+                            <span class="font-bold text-brand-navy" x-text="Math.min(pagination.currentPage * pagination.limit, pagination.totalRecords)"></span> arası
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="prevPage()" :disabled="pagination.currentPage <= 1" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium flex items-center gap-2">
+                            <i class="fa-solid fa-chevron-left"></i> Önceki
+                        </button>
+                        <span class="px-4 py-2 font-bold text-brand-navy bg-blue-50 rounded-xl" x-text="pagination.currentPage + ' / ' + pagination.totalPages"></span>
+                        <button @click="nextPage()" :disabled="pagination.currentPage >= pagination.totalPages" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium flex items-center gap-2">
+                            Sonraki <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                </div>
+                <!-- END MEFTALAR PAGE -->
+                <!-- SETTINGS PAGE -->
+                <div x-show="activePage === 'settings'" x-cloak x-transition.opacity>
+                    <div class="mb-6 flex overflow-x-auto space-x-2 sm:space-x-4 border-b border-slate-200 hide-scrollbar pb-2">
+                        <template x-if="isAdmin">
+                            <button @click="activeSettingsTab = 'general'" :class="activeSettingsTab === 'general' ? 'border-brand-navy text-brand-navy border-b-2 font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3 sm:px-4 py-2 flex items-center gap-2 transition whitespace-nowrap">
+                                <i class="fa-solid fa-building"></i> Genel Ayarlar
+                            </button>
+                        </template>
+                        <template x-if="isAdmin">
+                            <button @click="activeSettingsTab = 'security'" :class="activeSettingsTab === 'security' ? 'border-brand-navy text-brand-navy border-b-2 font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3 sm:px-4 py-2 flex items-center gap-2 transition whitespace-nowrap">
+                                <i class="fa-solid fa-shield-halved"></i> Güvenlik & IP
+                            </button>
+                        </template>
+                        <template x-if="isAdmin">
+                            <button @click="activeSettingsTab = 'sms'" :class="activeSettingsTab === 'sms' ? 'border-brand-navy text-brand-navy border-b-2 font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3 sm:px-4 py-2 flex items-center gap-2 transition whitespace-nowrap">
+                                <i class="fa-solid fa-comment-sms"></i> VatanSMS (2FA)
+                            </button>
+                        </template>
+                        <template x-if="isAdmin">
+                            <button @click="activeSettingsTab = 'smtp'" :class="activeSettingsTab === 'smtp' ? 'border-brand-navy text-brand-navy border-b-2 font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3 sm:px-4 py-2 flex items-center gap-2 transition whitespace-nowrap">
+                                <i class="fa-solid fa-envelope"></i> SMTP / 2FA
+                            </button>
+                        </template>
+                        <button @click="activeSettingsTab = 'users'" :class="activeSettingsTab === 'users' ? 'border-brand-navy text-brand-navy border-b-2 font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3 sm:px-4 py-2 flex items-center gap-2 transition whitespace-nowrap">
+                            <i class="fa-solid fa-users-gear"></i> <span x-text="isAdmin ? 'Ekip Yönetimi' : 'Profilim'"></span>
+                        </button>
+                        <template x-if="isAdmin">
+                            <button @click="activeSettingsTab = 'cemeteries'; loadMezarliklar();" :class="activeSettingsTab === 'cemeteries' ? 'border-brand-navy text-brand-navy border-b-2 font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3 sm:px-4 py-2 flex items-center gap-2 transition whitespace-nowrap">
+                                <i class="fa-solid fa-map-location-dot"></i> Mezarlık Yönetimi
+                            </button>
+                        </template>
+                        <template x-if="isAdmin">
+                            <button @click="activeSettingsTab = 'kiosk'" :class="activeSettingsTab === 'kiosk' ? 'border-brand-navy text-brand-navy border-b-2 font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3 sm:px-4 py-2 flex items-center gap-2 transition whitespace-nowrap">
+                                <i class="fa-solid fa-tv"></i> Kiosk Yönetimi
+                            </button>
+                        </template>
+                    </div>
+
+                    <div x-show="activeSettingsTab !== 'cemeteries'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-12">
+                        <form @submit.prevent="saveSettings">
+                            <!-- TAB 1: Genel Ayarlar -->
+                            <div x-show="activeSettingsTab === 'general'" x-cloak class="p-8 space-y-6 animate-fade-in">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    <div class="space-y-6">
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Kurumsal Logo (Yükle)</label>
+                                            <div class="flex items-center gap-4">
+                                                <div class="w-16 h-16 bg-white border border-slate-200 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                                                    <img x-show="systemSettings.logo_url" :src="systemSettings.logo_url.startsWith('http') ? systemSettings.logo_url : '../' + systemSettings.logo_url" class="w-full h-full object-contain p-1" onerror="this.onerror=null; this.src='../assets/img/logo.svg'">
+                                                    <i x-show="!systemSettings.logo_url" class="fa-solid fa-image text-slate-300 text-2xl"></i>
+                                                </div>
+                                                <div class="flex-1">
+                                                    <input type="file" @change="uploadLogo" accept="image/png, image/jpeg, image/svg+xml" class="hidden" id="logoUploadInput">
+                                                    <label for="logoUploadInput" class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition border border-slate-200 text-sm">
+                                                        <i class="fa-solid fa-upload"></i> Logo Seç & Yükle
+                                                    </label>
+                                                    <p class="text-xs text-slate-500 mt-1">SVG, PNG veya JPG önerilir.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Belediye / Başkanlık Adı</label>
+                                            <input type="text" x-model="systemSettings.belediye_adi" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Müdürlük Adı</label>
+                                            <input type="text" x-model="systemSettings.mudurluk_adi" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium">
+                                        </div>
+                                    </div>
+                                    <div class="space-y-6">
+                                        <div class="p-6 bg-slate-50 border border-slate-100 rounded-xl">
+                                            <h4 class="text-brand-navy font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-signature"></i> Sol İmza Bloğu (Sorumlu)</h4>
+                                            <div class="space-y-4">
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Adı Soyadı</label>
+                                                    <input type="text" x-model="systemSettings.mezarlik_sorumlusu_ad" class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:border-brand-navy outline-none transition text-slate-800">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ünvanı</label>
+                                                    <input type="text" x-model="systemSettings.mezarlik_sorumlusu_unvan" class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:border-brand-navy outline-none transition text-slate-800">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="p-6 bg-slate-50 border border-slate-100 rounded-xl">
+                                            <h4 class="text-brand-navy font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-signature"></i> Sağ İmza Bloğu (Müdür)</h4>
+                                            <div class="space-y-4">
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Adı Soyadı</label>
+                                                    <input type="text" x-model="systemSettings.birim_sorumlusu_ad" class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:border-brand-navy outline-none transition text-slate-800">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ünvanı</label>
+                                                    <input type="text" x-model="systemSettings.birim_sorumlusu_unvan" class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:border-brand-navy outline-none transition text-slate-800">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- TAB 1.5: Kiosk Ayarları -->
+                            <div x-show="activeSettingsTab === 'kiosk'" x-cloak class="p-8 space-y-6 animate-fade-in">
+                                <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                                    <i class="fa-solid fa-circle-info text-blue-500 mt-0.5"></i>
+                                    <div>
+                                        <h4 class="font-bold text-blue-800 text-sm">Kiosk Reklam & Görsel Yönetimi</h4>
+                                        <p class="text-blue-700 text-xs mt-1">Kiosk ekranlarında boşta kalındığında slayt olarak gösterilecek görselleri buradan yönetebilirsiniz. <strong>En iyi görünüm için 1920x1080 (Yatay Kiosk) boyutlarında görseller yüklemeniz önerilir.</strong> GIF animasyonları desteklenir.</p>
+                                    </div>
+                                </div>
+
+                                <div class="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center bg-slate-50 hover:bg-slate-100 transition">
+                                    <input type="file" @change="uploadKioskAd" accept="image/*" class="hidden" id="kioskUploadInput" multiple>
+                                    <label for="kioskUploadInput" class="cursor-pointer inline-flex flex-col items-center">
+                                        <div class="w-16 h-16 bg-white shadow-sm rounded-full flex items-center justify-center text-brand-navy text-2xl mb-3 border border-slate-200">
+                                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                                        </div>
+                                        <span class="font-bold text-slate-700">Görsel Seç & Yükle</span>
+                                        <span class="text-xs text-slate-500 mt-1">JPG, PNG, GIF, WEBP</span>
+                                    </label>
+                                </div>
+
+                                <div x-show="kioskAds && kioskAds.length > 0" class="mt-6">
+                                    <h4 class="font-bold text-slate-700 mb-4 border-b border-slate-200 pb-2">Yüklü Görseller (<span x-text="kioskAds.length"></span>)</h4>
+                                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                        <template x-for="(ad, idx) in kioskAds" :key="idx">
+                                            <div class="relative group aspect-video bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                                                <img :src="'../' + ad" class="w-full h-full object-cover">
+                                                <div class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-[2px]">
+                                                    <button type="button" @click="moveKioskAdUp(idx)" x-show="idx > 0" class="w-10 h-10 bg-slate-700/80 text-white rounded-full flex items-center justify-center hover:bg-slate-600 transition shadow-lg tooltip" title="Yukarı Taşı">
+                                                        <i class="fa-solid fa-arrow-left"></i>
+                                                    </button>
+                                                    <button type="button" @click="removeKioskAd(idx)" class="w-10 h-10 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition shadow-lg tooltip" title="Görseli Sil">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                    <button type="button" @click="moveKioskAdDown(idx)" x-show="idx < kioskAds.length - 1" class="w-10 h-10 bg-slate-700/80 text-white rounded-full flex items-center justify-center hover:bg-slate-600 transition shadow-lg tooltip" title="Aşağı Taşı">
+                                                        <i class="fa-solid fa-arrow-right"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                                <!-- TAB 2: Güvenlik (IP) -->
+                                <div x-show="activeSettingsTab === 'security'" x-cloak class="p-8 space-y-8 animate-fade-in">
+                                    <div class="flex items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                        <div>
+                                            <h4 class="font-bold text-slate-800 text-lg">IP Kısıtlaması (Yönetim Paneli)</h4>
+                                            <p class="text-sm text-slate-500 mt-1">Aktif edildiğinde sadece aşağıda belirtilen IP adreslerinden yönetim paneline erişilebilir.</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" x-model="systemSettings.ip_restriction_enabled" class="sr-only peer">
+                                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-navy shadow-inner"></div>
+                                        </label>
+                                    </div>
+
+                                    <div x-show="systemSettings.ip_restriction_enabled" x-collapse>
+                                        <div class="flex items-center justify-between mb-2">
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">İzin Verilen IP Adresleri</label>
+                                            <button type="button" @click="addMyIp()" class="text-xs font-bold text-brand-navy hover:text-blue-900 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md transition border border-blue-200">
+                                                <i class="fa-solid fa-location-crosshairs"></i> Kendi IP'mi Ekle
+                                            </button>
+                                        </div>
+                                        <p class="text-xs text-slate-400 mb-3">Birden fazla IP adresi girmek için <strong>her satıra bir IP</strong> gelecek şekilde alt alta yazın.</p>
+                                        <textarea x-model="systemSettings.allowed_ips" rows="5" class="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition text-slate-800 font-medium text-sm font-mono leading-relaxed" placeholder="Örnek:&#10;192.168.1.100&#10;88.243.21.32"></textarea>
+                                    </div>
+
+                                    <!-- Kiosk IP Kısıtlaması -->
+                                    <div class="flex items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200 mt-8">
+                                        <div>
+                                            <h4 class="font-bold text-slate-800 text-lg">Kiosk IP Kısıtlaması</h4>
+                                            <p class="text-sm text-slate-500 mt-1">Aktif edildiğinde, yalnızca belirlenen IP adreslerine (örneğin sadece belediyedeki kiosk cihazlarına) kiosk sistemi açılır.</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" x-model="systemSettings.kiosk_ip_restriction_enabled" class="sr-only peer">
+                                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-navy shadow-inner"></div>
+                                        </label>
+                                    </div>
+
+                                    <div x-show="systemSettings.kiosk_ip_restriction_enabled" x-collapse>
+                                        <div class="flex items-center justify-between mb-2">
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Kiosk İçin İzin Verilen IP Adresleri</label>
+                                        </div>
+                                        <p class="text-xs text-slate-400 mb-3">Birden fazla IP adresi girmek için <strong>her satıra bir IP</strong> gelecek şekilde alt alta yazın.</p>
+                                        <textarea x-model="systemSettings.kiosk_allowed_ips" rows="4" class="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition text-slate-800 font-medium text-sm font-mono leading-relaxed" placeholder="Örnek:&#10;192.168.1.50&#10;192.168.1.51"></textarea>
+                                    </div>
+                                </div>
+
+                                <!-- TAB 3: SMS Ayarları -->
+                                <div x-show="activeSettingsTab === 'sms'" x-cloak class="p-8 space-y-6 animate-fade-in">
+                                    <div class="bg-blue-50 border border-blue-100 text-blue-800 rounded-xl p-4 flex gap-3 text-sm">
+                                        <i class="fa-solid fa-circle-info mt-0.5 text-blue-600 text-base"></i>
+                                        <div>
+                                            <strong>2FA (İki Aşamalı Doğrulama):</strong> Yönetici paneline giriş yaparken personelin telefonuna SMS ile kod gönderilmesi için VatanSMS (v1) bilgilerini girin. Personelin hesabında geçerli bir telefon numarası kayıtlı olmalıdır.
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">VatanSMS API ID</label>
+                                        <input type="text" x-model="systemSettings.vatansms_api_id" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium" placeholder="Örn: 12345">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">VatanSMS API Key</label>
+                                        <input type="password" x-model="systemSettings.vatansms_api_key" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium" placeholder="**************">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">SMS Başlığı (Sender)</label>
+                                        <input type="text" x-model="systemSettings.vatansms_sender" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium" placeholder="Örn: CIFTLIKKOY">
+                                        <p class="text-xs text-slate-400 mt-2">VatanSMS panelinde onaylanmış alfa-nümerik başlığınız olmalıdır, aksi halde SMS iletilmez.</p>
+                                    </div>
+                                </div>
+                                <!-- TAB 3.5: SMTP Ayarları -->
+                                <div x-show="activeSettingsTab === 'smtp'" x-cloak class="p-8 space-y-6 animate-fade-in">
+                                    <div class="bg-blue-50 border border-blue-100 text-blue-800 rounded-xl p-4 flex gap-3 text-sm">
+                                        <i class="fa-solid fa-circle-info mt-0.5 text-blue-600 text-base"></i>
+                                        <div>
+                                            <strong>E-Posta (SMTP):</strong> Sistemin e-posta gönderebilmesi için SMTP sunucu bilgilerini girin.
+                                        </div>
+                                    </div>
+                                    
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">SMTP Sunucu (Host)</label>
+                                            <input type="text" x-model="systemSettings.smtp_host" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium" placeholder="mail.site.com">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">SMTP Port</label>
+                                            <input type="number" x-model="systemSettings.smtp_port" inputmode="numeric" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium" placeholder="587">
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">E-Posta Adresi (User)</label>
+                                            <input type="email" x-model="systemSettings.smtp_user" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium" placeholder="noreply@site.com">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">E-Posta Şifresi</label>
+                                            <input type="password" x-model="systemSettings.smtp_pass" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium" placeholder="**************">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Güvenlik (Secure)</label>
+                                            <select x-model="systemSettings.smtp_secure" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy outline-none transition text-slate-800 font-medium">
+                                                <option value="tls">TLS</option>
+                                                <option value="ssl">SSL</option>
+                                                <option value="">Yok</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- TAB 4: Ekip Yönetimi -->
+                                <div x-show="activeSettingsTab === 'users'" x-cloak class="p-8 space-y-6 animate-fade-in bg-slate-50/50">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                                        <div>
+                                            <h4 class="text-xl font-bold text-slate-800 tracking-tight" x-text="isAdmin ? 'Sistem Kullanıcıları' : 'Profilim'"></h4>
+                                            <p class="text-slate-500 text-sm mt-1" x-show="isAdmin">Sisteme erişimi olan tüm yöneticileri ve personeli buradan yönetebilirsiniz.</p>
+                                        </div>
+                                        <button x-show="isAdmin" type="button" @click="openUserModal('add')" class="px-5 py-2.5 bg-brand-navy text-white font-bold rounded-xl hover:bg-blue-800 transition shadow-md flex items-center justify-center gap-2">
+                                            <i class="fa-solid fa-user-plus"></i> Yeni Yetkili Ekle
+                                        </button>
+                                    </div>
+
+                                    <!-- Kullanıcı Profil Kartları (Grid) -->
+                                    <div class="relative min-h-[50vh]">
+                                        <template x-if="isUsersLoading">
+                                            <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 z-10 rounded-2xl">
+                                                <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-4"></i>
+                                                <span class="font-medium">Kullanıcılar Yükleniyor...</span>
+                                            </div>
+                                        </template>
+
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                            <template x-for="u in users.filter(x => isAdmin || x.username === currentUser.username)" :key="u.id">
+                                                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-lg transition group flex flex-col">
+                                                    <div class="p-6 flex flex-col items-center text-center border-b border-slate-100 bg-gradient-to-b from-slate-50 to-white relative">
+                                                        <div class="absolute top-4 right-4 flex gap-2" x-show="isAdmin || u.username === currentUser.username">
+                                                            <button type="button" @click="openUserModal('edit', u)" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Düzenle">
+                                                                <i class="fa-solid fa-pen"></i>
+                                                            </button>
+                                                            <button x-show="isAdmin && u.role !== 'superadmin'" type="button" @click="removeUser(u.id)" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Sil">
+                                                                <i class="fa-solid fa-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div class="w-16 h-16 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-2xl mb-4 shadow-inner">
+                                                            <i class="fa-solid fa-user-tie"></i>
+                                                        </div>
+                                                        <h4 class="font-bold text-slate-800 text-lg truncate w-full" x-text="u.ad_soyad"></h4>
+                                                        <p class="text-xs text-brand-navy font-bold tracking-wide mt-1 uppercase truncate w-full" x-text="u.unvan || 'PERSONEL'"></p>
+                                                        <div class="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-500">
+                                                            <i class="fa-solid fa-id-card"></i> <span x-text="u.username"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="p-5 bg-white flex-1 flex flex-col justify-center">
+                                                        <!-- Super Admin -->
+                                                        <template x-if="u.role === 'superadmin'">
+                                                            <div class="flex flex-col items-center justify-center text-center py-2 text-emerald-600">
+                                                                <i class="fa-solid fa-shield-halved text-2xl mb-2"></i>
+                                                                <span class="text-sm font-bold">Süper Admin (Tam Yetki)</span>
+                                                            </div>
+                                                        </template>
+                                                        <!-- Personel Yetkileri (Toggles) -->
+                                                        <template x-if="u.role !== 'superadmin'">
+                                                            <div class="flex items-center justify-center h-full mt-4">
+                                                                <button type="button" @click="openPermissionModal(u)" class="px-5 py-2.5 bg-slate-100 hover:bg-brand-navy hover:text-white text-brand-navy rounded-xl font-bold transition shadow-sm flex items-center gap-2">
+                                                                    <i class="fa-solid fa-sliders"></i> Yetkileri Düzenle
+                                                                </button>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                                </div>
+                                
+                                <div x-show="['general', 'kiosk', 'security', 'sms', 'smtp'].includes(activeSettingsTab)" class="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end">
+                                    <button type="submit" class="px-8 py-3 bg-brand-navy text-white font-bold rounded-xl hover:bg-blue-900 transition shadow-md flex items-center gap-2 transform hover:-translate-y-0.5 active:translate-y-0">
+                                        <i class="fa-solid fa-save"></i> Değişiklikleri Kaydet
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+
+                    <!-- Yeni Kullanıcı Modal -->
+                    <div x-show="isNewUserModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" x-cloak>
+                        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="isNewUserModalOpen = false"></div>
+                        <div class="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden" 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100">
+                            
+                            <div class="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                                <h3 class="text-lg font-bold text-slate-800">
+                                    <i class="fa-solid text-brand-navy mr-2" :class="userModalMode === 'edit' ? 'fa-pen' : 'fa-user-plus'"></i>
+                                    <span x-text="userModalMode === 'edit' ? 'Profil Düzenle' : 'Yeni Yetkili Ekle'"></span>
+                                </h3>
+                                <button @click="isNewUserModalOpen = false" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-times text-xl"></i></button>
+                            </div>
+                            
+                            <div class="p-6">
+                                <form @submit.prevent="saveUser()" class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Kullanıcı Adı (Sicil No) *</label>
+                                        <input type="text" x-model="newUserForm.username" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition" required :disabled="userModalMode === 'edit' && !isAdmin">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Şifre <span x-show="userModalMode === 'add'">*</span></label>
+                                        <input type="password" x-model="newUserForm.password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition" :required="userModalMode === 'add'" :placeholder="userModalMode === 'edit' ? 'Değiştirmek istemiyorsanız boş bırakın' : ''">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ad Soyad *</label>
+                                        <input type="text" x-model="newUserForm.ad_soyad" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition" required :disabled="userModalMode === 'edit' && !isAdmin">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">E-Posta Adresi</label>
+                                        <input type="email" x-model="newUserForm.eposta" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="Örn: ornek@mail.com" :disabled="userModalMode === 'edit' && !isAdmin">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Telefon Numarası</label>
+                                        <input type="text" x-model="newUserForm.telefon" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="Örn: 05xxxxxxxxx" :disabled="userModalMode === 'edit' && !isAdmin">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ünvan / Görev</label>
+                                        <input type="text" x-model="newUserForm.unvan" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition" placeholder="Örn: VHKİ" :disabled="userModalMode === 'edit' && !isAdmin">
+                                    </div>
+                                    <div class="pt-2 mt-4">
+                                        <button type="submit" class="w-full bg-brand-navy text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition shadow-md flex items-center justify-center gap-2">
+                                            <i class="fa-solid fa-check"></i> Yetkiliyi Kaydet
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Permission Modal -->
+                    <div x-show="isPermissionModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" x-cloak>
+                        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="isPermissionModalOpen = false" x-show="isPermissionModalOpen" x-transition.opacity></div>
+                        
+                        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden" x-show="isPermissionModalOpen" x-transition.scale.origin.bottom>
+                            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                <h3 class="text-xl font-bold text-brand-navy flex items-center gap-3">
+                                    <i class="fa-solid fa-sliders"></i> <span x-text="selectedUserForPermission?.ad_soyad + ' Yetkileri'"></span>
+                                </h3>
+                                <button type="button" @click="isPermissionModalOpen = false" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-red-500 hover:text-white transition">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="p-6 space-y-5 bg-white">
+                                <!-- Kayıt Ekleme & Sayım -->
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <i class="fa-solid fa-plus text-brand-navy w-4"></i> Kayıt Ekleme & Yeni Sayım
+                                    </span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" :checked="selectedUserForPermission?.can_add == 1" @change="toggleUserPermission(selectedUserForPermission.id, 'can_add', selectedUserForPermission.can_add)" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-navy"></div>
+                                    </label>
+                                </div>
+                                <!-- Kayıt Düzenleme -->
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <i class="fa-solid fa-pen text-brand-navy w-4"></i> Kayıt Düzenleme
+                                    </span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" :checked="selectedUserForPermission?.can_edit == 1" @change="toggleUserPermission(selectedUserForPermission.id, 'can_edit', selectedUserForPermission.can_edit)" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                    </label>
+                                </div>
+                                <!-- Silme Yetkisi -->
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <i class="fa-solid fa-trash text-brand-navy w-4"></i> Kayıt Silme
+                                    </span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" :checked="selectedUserForPermission?.can_delete == 1" @change="toggleUserPermission(selectedUserForPermission.id, 'can_delete', selectedUserForPermission.can_delete)" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                                    </label>
+                                </div>
+                                <!-- Dışa Aktarma -->
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <i class="fa-solid fa-file-export text-brand-navy w-4"></i> Veri Dışa Aktarma
+                                    </span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" :checked="selectedUserForPermission?.can_export == 1" @change="toggleUserPermission(selectedUserForPermission.id, 'can_export', selectedUserForPermission.can_export)" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                                    </label>
+                                </div>
+                                <div class="h-px bg-slate-100 my-2"></div>
+                                <!-- Onay Yetkisi -->
+                                <div class="flex items-center justify-between bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                                    <span class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <i class="fa-solid fa-check-double text-blue-600 w-4"></i> Saha Sayım Onay Yetkisi
+                                    </span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" :checked="selectedUserForPermission?.can_approve == 1" @change="toggleUserPermission(selectedUserForPermission.id, 'can_approve', selectedUserForPermission.can_approve)" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                                <button type="button" @click="isPermissionModalOpen = false" class="px-5 py-2.5 bg-brand-navy text-white font-bold rounded-xl hover:bg-blue-800 transition">
+                                    Kapat
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 5: Mezarlık Yönetimi -->
+                    <div x-show="activeSettingsTab === 'cemeteries'" x-cloak class="max-w-4xl mx-auto mt-4 animate-fade-in">
+                        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
+                            <div class="absolute top-0 left-0 w-full h-1 bg-brand-navy"></div>
+                            
+                            <div class="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+                                <h3 class="text-xl font-bold text-slate-800 flex items-center gap-3">
+                                    <i class="fa-solid fa-map-location-dot text-brand-navy"></i> Mezarlık Yönetimi
+                                </h3>
+                            </div>
+
+                            <div class="p-8 space-y-6">
+                                <!-- Yeni Mezarlık Ekleme Butonu -->
+                                <div class="flex justify-end">
+                                    <button @click="openMezarlikModal('add')" class="px-6 py-3 bg-brand-navy text-white font-bold rounded-xl hover:bg-blue-900 transition shadow-sm flex items-center gap-2">
+                                        <i class="fa-solid fa-plus"></i> Yeni Mezarlık Ekle
+                                    </button>
+                                </div>
+
+                                <!-- Mezarlık Listesi -->
+                                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                                    <table class="w-full text-left border-collapse">
+                                        <thead class="bg-slate-50 border-b border-slate-200">
+                                            <tr>
+                                                <th class="py-3 px-4 font-semibold text-slate-600 text-sm">Mezarlık Adı</th>
+                                                <th class="py-3 px-4 font-semibold text-slate-600 text-sm">Kayıtlı Defin</th>
+                                                <th class="py-3 px-4 font-semibold text-slate-600 text-sm text-right">İşlem</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            <template x-for="item in mezarliklar" :key="item.id">
+                                                <tr class="hover:bg-slate-50 transition">
+                                                    <td class="py-3 px-4 text-sm font-bold text-slate-800" x-text="item.ad"></td>
+                                                    <td class="py-3 px-4 text-sm text-slate-600">
+                                                        <span class="bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md text-xs font-bold" x-text="(item.defin_sayisi || 0) + ' Kayıt'"></span>
+                                                    </td>
+                                                    <td class="py-3 px-4 text-right flex justify-end gap-2">
+                                                        <button @click="activePage = 'meftalar'; mezarlikId = item.id; loadData();" class="px-3 py-1.5 rounded-lg bg-blue-50 text-brand-navy text-xs font-bold flex items-center gap-1.5 hover:bg-blue-100 transition tooltip" title="Bu Mezarlıktaki Meftaları Listele">
+                                                            <i class="fa-solid fa-list-ul"></i> Defin Kayıtlarını Gör
+                                                        </button>
+                                                        <button @click="openMezarlikModal('edit', item)" class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition tooltip" title="Düzenle">
+                                                            <i class="fa-solid fa-pen"></i>
+                                                        </button>
+                                                        <button @click="deleteMezarlik(item.id, item.ad)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition tooltip" title="Sil">
+                                                            <i class="fa-solid fa-trash"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                            <template x-if="isMezarliklarLoading">
+                                                <tr>
+                                                    <td colspan="3" class="text-center py-6 text-slate-500 text-sm">
+                                                        <i class="fa-solid fa-circle-notch fa-spin text-lg text-brand-navy mr-2"></i> Mezarlıklar yükleniyor...
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                            <template x-if="!isMezarliklarLoading && mezarliklar.length === 0">
+                                                <tr>
+                                                    <td colspan="3" class="text-center py-6 text-slate-500 text-sm">
+                                                        Kayıtlı mezarlık bulunamadı.
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <!-- END SETTINGS PAGE -->
+
+                <!-- SAYIM TAB (Saha Sayım Modülü) -->
+                <div x-show="activePage === 'sayim'" x-cloak class="animate-fade-in px-4 sm:px-8 py-6 w-full max-w-3xl mx-auto pb-24 overflow-y-auto scrollable-body h-[calc(100vh-76px)]">
+                    
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight"><i class="fa-solid fa-camera text-brand-navy mr-2"></i>Saha Sayım Modülü</h2>
+                            <p class="text-slate-500 mt-1 font-medium">Sahada hızlı bir şekilde mefta kaydı almak için bu formu kullanabilirsiniz. Girilen kayıtlar <b class="text-brand-navy">"Onay Bekliyor"</b> statüsünde listeye düşer.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
+                        <div class="p-6 sm:p-8 space-y-6">
+                            
+                            <!-- Mezarlık Seçimi -->
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Mezarlık Seçin <span class="text-red-500">*</span></label>
+                                <select x-model="sayimDraft.mezarlik_id" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none text-slate-800 font-medium transition">
+                                    <option value="">Seçiniz...</option>
+                                    <template x-for="m in mezarliklar" :key="m.id">
+                                        <option :value="m.id" x-text="m.ad"></option>
+                                    </template>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-2">Adı <span class="text-red-500">*</span></label>
+                                    <input type="text" x-model="sayimDraft.ad" class="uppercase w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-2">Soyadı <span class="text-red-500">*</span></label>
+                                    <input type="text" x-model="sayimDraft.soyad" class="uppercase w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-2">Ada No</label>
+                                    <input type="text" x-model="sayimDraft.ada_no" inputmode="numeric" class="uppercase w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-2">Parsel No</label>
+                                    <input type="text" x-model="sayimDraft.parsel_no" inputmode="numeric" class="uppercase w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-2">Doğum Tarihi</label>
+                                    <input type="text" inputmode="numeric" x-mask="99.99.9999" placeholder="GG.AA.YYYY" x-model="sayimDraft.dogum_tarihi" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-2">Ölüm Tarihi</label>
+                                    <input type="text" inputmode="numeric" x-mask="99.99.9999" placeholder="GG.AA.YYYY" x-model="sayimDraft.olum_tarihi" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                </div>
+                            </div>
+
+                            <!-- Konum -->
+                            <div class="pt-4 border-t border-slate-100">
+                                <div class="flex items-center justify-between mb-3">
+                                    <label class="block text-sm font-bold text-slate-700">Mezar Konumu <span class="text-red-500">*</span></label>
+                                    <button type="button" @click="getSayimLocation" class="text-xs bg-brand-navy text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-900 transition shadow-sm font-bold">
+                                        <i class="fa-solid fa-location-crosshairs"></i> Konum Al
+                                    </button>
+                                </div>
+                                <div id="sayimMap" class="w-full h-48 rounded-xl border border-slate-300 z-10 bg-slate-100 mb-3"></div>
+                                <div class="flex gap-2">
+                                    <input type="text" x-model="sayimDraft.lat" placeholder="Enlem" class="w-1/2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm" readonly>
+                                    <input type="text" x-model="sayimDraft.lng" placeholder="Boylam" class="w-1/2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm" readonly>
+                                </div>
+                            </div>
+
+                            <!-- Fotoğraf -->
+                            <div class="pt-4 border-t border-slate-100">
+                                <label class="block text-sm font-bold text-slate-700 mb-3">Mezar Fotoğrafı / Fotoğrafları</label>
+                                <div class="flex flex-wrap gap-3 mb-3">
+                                    <template x-for="(imgUrl, index) in sayimDraft.gorsel_url_list" :key="index">
+                                        <div class="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm w-24 h-24 bg-slate-100 group shrink-0">
+                                            <img :src="'../' + imgUrl" class="w-full h-full object-cover">
+                                            <div class="absolute inset-0 bg-slate-900/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition backdrop-blur-sm">
+                                                <button type="button" @click="sayimDraft.gorsel_url_list.splice(index, 1)" class="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition">
+                                                    <i class="fa-solid fa-trash text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <div class="border-2 border-dashed border-blue-300 rounded-xl w-24 h-24 flex flex-col items-center justify-center text-center bg-blue-50 hover:bg-blue-100 transition relative shrink-0">
+                                        <input type="file" id="sayimPhotoInput" @change="uploadSayimPhotos" accept="image/*" capture="environment" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" :disabled="sayimIsUploading">
+                                        <i class="fa-solid fa-camera text-brand-navy text-xl mb-1" x-show="!sayimIsUploading"></i>
+                                        <i class="fa-solid fa-spinner fa-spin text-brand-navy mb-1" x-show="sayimIsUploading"></i>
+                                        <span class="font-bold text-blue-900 text-[10px]" x-text="sayimIsUploading ? 'Yükleniyor' : 'Foto Çek'"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Katlı Mezar & Açıklama -->
+                            <div class="pt-4 border-t border-slate-100">
+                                <label class="block text-sm font-bold text-slate-700 mb-3">Katlı Mezar (Üste Gömü) Var mı?</label>
+                                <div class="flex gap-2 p-1.5 bg-slate-100 rounded-xl mb-5">
+                                    <button type="button" @click="sayimDraft.katli_mezar = 'yok'" :class="sayimDraft.katli_mezar === 'yok' ? 'bg-white shadow-sm font-bold text-brand-navy' : 'text-slate-500 font-medium'" class="flex-1 py-2 text-sm rounded-lg transition">Yok</button>
+                                    <button type="button" @click="sayimDraft.katli_mezar = 'var'" :class="sayimDraft.katli_mezar === 'var' ? 'bg-white shadow-sm font-bold text-brand-navy' : 'text-slate-500 font-medium'" class="flex-1 py-2 text-sm rounded-lg transition">Var (Katlı)</button>
+                                </div>
+
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Not / Açıklama</label>
+                                <textarea x-model="sayimDraft.aciklama" rows="2" class="uppercase w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-navy focus:ring-2 focus:ring-blue-100 outline-none text-sm transition"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Submit Footer -->
+                        <div class="px-6 sm:px-8 py-5 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-3">
+                            <button type="button" @click="clearSayimForm" class="w-full sm:w-auto px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 transition flex items-center justify-center gap-2 transform hover:-translate-y-0.5 active:translate-y-0">
+                                <i class="fa-solid fa-eraser"></i> Formu Temizle
+                            </button>
+                            <button type="button" @click="saveSayimRecord" class="w-full sm:w-auto px-8 py-3 bg-brand-navy text-white font-bold rounded-xl hover:bg-blue-900 transition shadow-md flex items-center justify-center gap-2 transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70" :disabled="sayimIsSaving">
+                                <i x-show="sayimIsSaving" class="fa-solid fa-spinner fa-spin"></i>
+                                <i x-show="!sayimIsSaving" class="fa-solid fa-save"></i>
+                                <span x-text="sayimIsSaving ? 'Kaydediliyor...' : 'Sayımı Gönder'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- END SAYIM TAB -->
+
+                <!-- RAPORLAR PAGE -->
+                <div x-show="activePage === 'raporlar'" x-cloak class="animate-fade-in" style="overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:calc(100vh - 4rem); padding:1rem; padding-bottom:6rem;">
+                    
+                    <!-- Rapor Tarihi -->
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-800">Mezarlık Raporları ve Analiz</h2>
+                            <p class="text-sm text-slate-500 mt-1">Rapor Tarihi: <span class="font-bold" x-text="raporData.rapor_tarihi || '-'"></span></p>
+                        </div>
+                        <button @click="loadRaporlar()" class="px-5 py-2.5 bg-brand-navy text-white rounded-xl font-bold hover:bg-blue-900 transition shadow-sm flex items-center gap-2">
+                            <i class="fa-solid fa-arrows-rotate"></i> Yenile
+                        </button>
+                    </div>
+
+                    <!-- Loading -->
+                    <template x-if="raporLoading">
+                        <div class="flex flex-col items-center justify-center py-20 text-slate-400">
+                            <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-4"></i>
+                            <span class="font-medium">Rapor verileri yükleniyor...</span>
+                        </div>
+                    </template>
+
+                    <template x-if="!raporLoading">
+                    <div class="space-y-6">
+
+                    <!-- KPI Kartları -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+                            <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 mx-auto mb-3">
+                                <i class="fa-solid fa-users text-xl"></i>
+                            </div>
+                            <p class="text-2xl font-bold text-slate-800" x-text="raporData.kpilar?.toplam_defin || 0"></p>
+                            <p class="text-xs text-slate-500 font-medium mt-1">Toplam Kayıt</p>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+                            <div class="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 mx-auto mb-3">
+                                <i class="fa-solid fa-map-location-dot text-xl"></i>
+                            </div>
+                            <p class="text-2xl font-bold text-slate-800" x-text="raporData.kpilar?.toplam_mezarlik || 0"></p>
+                            <p class="text-xs text-slate-500 font-medium mt-1">Mezarlık</p>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+                            <div class="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 mx-auto mb-3">
+                                <i class="fa-solid fa-check-double text-xl"></i>
+                            </div>
+                            <p class="text-2xl font-bold text-emerald-700" x-text="raporData.kpilar?.onaylanan || 0"></p>
+                            <p class="text-xs text-slate-500 font-medium mt-1">Onaylı</p>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+                            <div class="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 mx-auto mb-3">
+                                <i class="fa-solid fa-clock text-xl"></i>
+                            </div>
+                            <p class="text-2xl font-bold text-orange-600" x-text="raporData.kpilar?.onay_bekleyen || 0"></p>
+                            <p class="text-xs text-slate-500 font-medium mt-1">Onay Bekliyor</p>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+                            <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 mx-auto mb-3">
+                                <i class="fa-solid fa-location-dot text-xl"></i>
+                            </div>
+                            <p class="text-2xl font-bold text-slate-800" x-text="raporData.kpilar?.konumlu || 0"></p>
+                            <p class="text-xs text-slate-500 font-medium mt-1">Konumlu</p>
+                        </div>
+                        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center">
+                            <div class="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 mx-auto mb-3">
+                                <i class="fa-solid fa-image text-xl"></i>
+                            </div>
+                            <p class="text-2xl font-bold text-slate-800" x-text="raporData.kpilar?.gorselli || 0"></p>
+                            <p class="text-xs text-slate-500 font-medium mt-1">Görselli</p>
+                        </div>
+                    </div>
+
+                    <!-- Mezarlık Bazlı Dağılım Tablosu -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+                            <i class="fa-solid fa-chart-bar text-brand-navy"></i>
+                            <h3 class="font-bold text-slate-800">Mezarlık Bazlı Dağılım</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 border-b border-slate-200">
+                                    <tr>
+                                        <th class="py-3 px-5 font-semibold text-slate-600">Mezarlık</th>
+                                        <th class="py-3 px-5 font-semibold text-slate-600 text-center">Toplam</th>
+                                        <th class="py-3 px-5 font-semibold text-slate-600 text-center">Onaylı</th>
+                                        <th class="py-3 px-5 font-semibold text-slate-600 text-center">Bekleyen</th>
+                                        <th class="py-3 px-5 font-semibold text-slate-600 text-center">Konumlu</th>
+                                        <th class="py-3 px-5 font-semibold text-slate-600 hidden md:table-cell">Dağılım</th>
+                                        <th class="py-3 px-5 font-semibold text-slate-600 text-center hidden lg:table-cell">İlk Defin</th>
+                                        <th class="py-3 px-5 font-semibold text-slate-600 text-center hidden lg:table-cell">Son Defin</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <template x-for="m in (raporData.mezarlik_dagilim || [])" :key="m.id">
+                                        <tr class="hover:bg-slate-50 transition">
+                                            <td class="py-3 px-5 font-bold text-slate-800" x-text="m.mezarlik_adi"></td>
+                                            <td class="py-3 px-5 text-center">
+                                                <span class="bg-brand-navy/10 text-brand-navy px-2.5 py-1 rounded-lg text-xs font-bold" x-text="m.toplam_defin"></span>
+                                            </td>
+                                            <td class="py-3 px-5 text-center">
+                                                <span class="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-lg text-xs font-bold" x-text="m.onayli || 0"></span>
+                                            </td>
+                                            <td class="py-3 px-5 text-center">
+                                                <span class="bg-orange-100 text-orange-700 px-2.5 py-1 rounded-lg text-xs font-bold" x-text="m.bekleyen || 0"></span>
+                                            </td>
+                                            <td class="py-3 px-5 text-center">
+                                                <span class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg text-xs font-bold" x-text="m.konumlu || 0"></span>
+                                            </td>
+                                            <td class="py-3 px-5 hidden md:table-cell">
+                                                <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden">
+                                                    <div class="bg-brand-navy h-4 rounded-full transition-all duration-700" :style="'width:' + (raporData.kpilar?.toplam_defin > 0 ? Math.round((m.toplam_defin / raporData.kpilar.toplam_defin) * 100) : 0) + '%'"></div>
+                                                </div>
+                                                <span class="text-[10px] text-slate-400 font-bold mt-1 block" x-text="(raporData.kpilar?.toplam_defin > 0 ? Math.round((m.toplam_defin / raporData.kpilar.toplam_defin) * 100) : 0) + '%'"></span>
+                                            </td>
+                                            <td class="py-3 px-5 text-center text-xs text-slate-500 hidden lg:table-cell" x-text="m.ilk_defin || '-'"></td>
+                                            <td class="py-3 px-5 text-center text-xs text-slate-500 hidden lg:table-cell" x-text="m.son_defin || '-'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- Yıllık Trend -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+                            <i class="fa-solid fa-chart-line text-brand-navy"></i>
+                            <h3 class="font-bold text-slate-800">Yıllara Göre Defin Sayısı</h3>
+                        </div>
+                        <div class="p-6">
+                            <template x-if="(raporData.yillik_trend || []).length === 0">
+                                <p class="text-sm text-slate-400 text-center py-8">Henüz yeterli veri yok.</p>
+                            </template>
+                            <div class="flex items-end gap-2 h-48" x-show="(raporData.yillik_trend || []).length > 0">
+                                <template x-for="(item, idx) in (raporData.yillik_trend || [])" :key="idx">
+                                    <div class="flex-1 flex flex-col items-center justify-end h-full group">
+                                        <span class="text-xs font-bold text-brand-navy mb-1 opacity-0 group-hover:opacity-100 transition" x-text="item.sayi"></span>
+                                        <div class="w-full bg-brand-navy/80 rounded-t-lg transition-all duration-700 hover:bg-brand-navy min-h-[4px]"
+                                             :style="'height:' + (raporData._maxYillik > 0 ? Math.max(4, (item.sayi / raporData._maxYillik) * 100) : 4) + '%'">
+                                        </div>
+                                        <span class="text-[10px] text-slate-500 font-bold mt-2 truncate w-full text-center" x-text="item.yil"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Aylık Dağılım (Bu Yıl) -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+                            <i class="fa-solid fa-calendar-days text-brand-navy"></i>
+                            <h3 class="font-bold text-slate-800"><span x-text="new Date().getFullYear()"></span> Yılı Aylık Dağılım</h3>
+                        </div>
+                        <div class="p-6">
+                            <template x-if="(raporData.aylik_dagilim || []).length === 0">
+                                <p class="text-sm text-slate-400 text-center py-8">Bu yıl henüz kayıt girilmemiş.</p>
+                            </template>
+                            <div class="flex items-end gap-1.5 h-48" x-show="(raporData.aylik_dagilim || []).length > 0">
+                                <template x-for="ay in 12" :key="ay">
+                                    <div class="flex-1 flex flex-col items-center justify-end h-full group">
+                                        <span class="text-xs font-bold text-emerald-600 mb-1 opacity-0 group-hover:opacity-100 transition" 
+                                              x-text="(raporData.aylik_dagilim || []).find(a => a.ay == ay)?.sayi || 0"></span>
+                                        <div class="w-full rounded-t-lg transition-all duration-700 min-h-[4px]"
+                                             :class="((raporData.aylik_dagilim || []).find(a => a.ay == ay)?.sayi || 0) > 0 ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-100'"
+                                             :style="'height:' + (raporData._maxAylik > 0 ? Math.max(4, (((raporData.aylik_dagilim || []).find(a => a.ay == ay)?.sayi || 0) / raporData._maxAylik) * 100) : 4) + '%'">
+                                        </div>
+                                        <span class="text-[9px] text-slate-500 font-bold mt-2" x-text="['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'][ay-1]"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- Defin Bölüm Dağılımı -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+                            <i class="fa-solid fa-layer-group text-brand-navy"></i>
+                            <h3 class="font-bold text-slate-800">Defin Bölüm Dağılımı</h3>
+                        </div>
+                        <div class="p-6 space-y-3">
+                            <template x-for="(b, idx) in (raporData.bolum_dagilim || [])" :key="idx">
+                                <div>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-sm font-semibold text-slate-700" x-text="b.bolum"></span>
+                                        <span class="text-sm font-bold text-brand-navy" x-text="b.sayi"></span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                        <div class="h-3 rounded-full transition-all duration-700"
+                                             :class="['bg-brand-navy','bg-blue-500','bg-indigo-500','bg-violet-500','bg-purple-500'][idx % 5]"
+                                             :style="'width:' + (raporData.kpilar?.toplam_defin > 0 ? Math.round((b.sayi / raporData.kpilar.toplam_defin) * 100) : 0) + '%'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="(raporData.bolum_dagilim || []).length === 0">
+                                <p class="text-sm text-slate-400 text-center py-4">Veri yok.</p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Ölüm Nedeni Dağılımı -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+                            <i class="fa-solid fa-notes-medical text-brand-navy"></i>
+                            <h3 class="font-bold text-slate-800">Ölüm Nedeni Dağılımı (İlk 10)</h3>
+                        </div>
+                        <div class="p-6 space-y-3">
+                            <template x-for="(n, idx) in (raporData.olum_nedeni_dagilim || [])" :key="idx">
+                                <div>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-sm font-semibold text-slate-700" x-text="n.neden"></span>
+                                        <span class="text-sm font-bold text-slate-600" x-text="n.sayi"></span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                        <div class="h-3 rounded-full transition-all duration-700"
+                                             :class="['bg-rose-500','bg-amber-500','bg-teal-500','bg-cyan-500','bg-sky-500','bg-lime-500','bg-fuchsia-500','bg-pink-500','bg-orange-500','bg-red-400'][idx % 10]"
+                                             :style="'width:' + (raporData.kpilar?.toplam_defin > 0 ? Math.round((n.sayi / raporData.kpilar.toplam_defin) * 100) : 0) + '%'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="(raporData.olum_nedeni_dagilim || []).length === 0">
+                                <p class="text-sm text-slate-400 text-center py-4">Veri yok.</p>
+                            </template>
+                        </div>
+                    </div>
+
+                    </div>
+                    </div>
+                    </template>
+                </div>
+                <!-- END RAPORLAR PAGE -->
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Ekle / Düzenle Modal -->
+    <div x-show="isModalOpen" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-3 sm:p-6 overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0 relative"
+             x-show="isModalOpen" x-transition.scale.95>
+            
+            <!-- Modal Header -->
+            <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h2 class="text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-address-card text-brand-navy"></i>
+                    <span x-text="modalMode === 'add' ? 'Yeni Kayıt Ekle' : 'Kayıt Düzenle'"></span>
+                </h2>
+                <button @click="closeModal()" class="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 hover:text-slate-800 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Tabs -->
+            <div class="flex px-2 sm:px-6 border-b border-slate-200 overflow-x-auto gap-2 sm:gap-4 scrollable-body shrink-0 bg-white pt-2 min-w-0 w-full">
+                <button @click="activeTab = 'kimlik'" :class="activeTab === 'kimlik' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-slate-500 hover:text-slate-700'" class="px-4 py-3 border-b-2 font-medium whitespace-nowrap transition">
+                    <i class="fa-solid fa-user mr-2"></i>Kişisel Bilgiler
+                </button>
+                <button @click="activeTab = 'defin'" :class="activeTab === 'defin' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-slate-500 hover:text-slate-700'" class="px-4 py-3 border-b-2 font-medium whitespace-nowrap transition">
+                    <i class="fa-solid fa-location-dot mr-2"></i>Defin Yeri & Harita
+                </button>
+                <button @click="activeTab = 'yakin'" :class="activeTab === 'yakin' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-slate-500 hover:text-slate-700'" class="px-4 py-3 border-b-2 font-medium whitespace-nowrap transition">
+                    <i class="fa-solid fa-people-group mr-2"></i>Yakın Bilgileri
+                </button>
+                <button @click="activeTab = 'gorsel'" :class="activeTab === 'gorsel' ? 'border-brand-navy text-brand-navy' : 'border-transparent text-slate-500 hover:text-slate-700'" class="px-4 py-3 border-b-2 font-medium whitespace-nowrap transition">
+                    <i class="fa-solid fa-camera mr-2"></i>Mezar Taşı Görseli
+                </button>
+            </div>
+
+            <!-- Modal Body (Scrollable) -->
+            <div class="p-4 sm:p-6 flex-1 overflow-y-auto overflow-x-hidden scrollable-body bg-slate-50/30 min-w-0 w-full">
+                
+                <!-- TAB 1: Kimlik -->
+                <div x-show="activeTab === 'kimlik'" x-transition.opacity class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Ad <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="formData.ad" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy focus:border-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Soyad <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="formData.soyad" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy focus:border-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">T.C. Kimlik No</label>
+                        <input type="text" x-model="formData.tc_no" @input="formData.tc_no = formData.tc_no.replace(/[^0-9]/g, '').substring(0, 11)" maxlength="11" pattern="[0-9]{11}" title="11 Haneli TC Kimlik Numarası" inputmode="numeric" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Baba Adı</label>
+                        <input type="text" x-model="formData.baba_adi" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Anne Adı</label>
+                        <input type="text" x-model="formData.anne_adi" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Doğum Yeri</label>
+                        <input type="text" x-model="formData.dogum_yeri" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Doğum Tarihi</label>
+                        <input type="date" x-model="formData.dogum_tarihi" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Ölüm Tarihi</label>
+                        <input type="date" x-model="formData.olum_tarihi" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Ölüm Nedeni</label>
+                        <input type="text" x-model="formData.olum_nedeni" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                </div>
+
+                <!-- TAB 2: Defin -->
+                <div x-show="activeTab === 'defin'" x-transition.opacity class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Mezarlık</label>
+                        <select x-model="formData.mezarlik_id" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                            <template x-for="m in mezarliklar" :key="m.id">
+                                <option :value="m.id" x-text="m.ad"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Defin Tarihi</label>
+                        <input type="date" x-model="formData.defin_tarihi" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Ada No</label>
+                        <input type="text" x-model="formData.ada_no" inputmode="numeric" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Parsel No</label>
+                        <input type="text" x-model="formData.parsel_no" inputmode="numeric" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div class="col-span-1 md:col-span-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-1.5 gap-2">
+                            <label class="block text-sm font-medium text-slate-700">Mezar Konumu (Harita üzerinden sürükleyip bırakabilirsiniz)</label>
+                            <button @click="getCurrentLocation()" type="button" class="text-sm px-3 py-1.5 sm:py-1 bg-brand-navy text-white rounded-lg hover:bg-blue-800 transition flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto">
+                                <i class="fa-solid fa-location-crosshairs"></i> Anlık Konum Al
+                            </button>
+                        </div>
+                        <div id="modalMap" class="w-full h-[300px] rounded-xl border border-slate-300 z-10 relative cursor-crosshair"></div>
+                        <div class="flex gap-4 mt-2">
+                            <input type="text" x-model="formData.lat" placeholder="Enlem" class="w-1/2 px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-slate-50 cursor-not-allowed" readonly>
+                            <input type="text" x-model="formData.lng" placeholder="Boylam" class="w-1/2 px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-slate-50 cursor-not-allowed" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: Yakın -->
+                <div x-show="activeTab === 'yakin'" x-transition.opacity class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Cenaze Yakını Adı Soyadı</label>
+                        <input type="text" x-model="formData.yakin_ad_soyad" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Akrabalık Derecesi (Örn: Oğlu)</label>
+                        <input type="text" x-model="formData.yakin_akrabalik" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Telefon</label>
+                        <input type="text" x-model="formData.yakin_telefon" inputmode="tel" class="w-full px-4 py-2.5 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div class="col-span-1 md:col-span-2">
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Adres</label>
+                        <textarea x-model="formData.yakin_adres" rows="3" class="w-full px-4 py-3 sm:py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none"></textarea>
+                    </div>
+                </div>
+
+                <!-- TAB 4: Görsel -->
+                <div x-show="activeTab === 'gorsel'" x-transition.opacity class="flex flex-col items-center justify-center p-6 bg-white rounded-xl border border-slate-200 shadow-sm">
+                    <div class="w-full max-w-md text-center">
+                        <i class="fa-solid fa-camera text-4xl text-slate-300 mb-4"></i>
+                        <h3 class="text-lg font-semibold text-slate-700 mb-2">Mezar Taşı Görseli Yükle</h3>
+                        <p class="text-sm text-slate-500 mb-6">Seçtiğiniz fotoğraf tarayıcınızda otomatik olarak küçültülür ve WebP formatına çevrilerek sunucu limitlerine takılmadan güvenle yüklenir.</p>
+                        
+                        <input type="file" @change="handleImageUpload" accept="image/*" class="hidden" id="fileUploadInput" multiple>
+                        
+                        <label for="fileUploadInput" class="cursor-pointer inline-flex items-center gap-2 px-6 py-3 bg-brand-navy text-white font-medium rounded-xl hover:bg-blue-800 transition">
+                            <i class="fa-solid fa-upload"></i> Fotoğraf Seç / Yükle
+                        </label>
+
+                        <!-- Önizleme Galerisi -->
+                        <div x-show="formData.gorsel_urls && formData.gorsel_urls.length > 0" class="mt-8 border border-slate-200 rounded-xl p-4 bg-slate-50 w-full">
+                            <div class="flex items-center justify-between mb-3">
+                                <p class="text-xs text-emerald-600 font-bold uppercase tracking-wider">Yüklü Görseller (<span x-text="formData.gorsel_urls.length"></span>)</p>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                <template x-for="(imgUrl, index) in formData.gorsel_urls" :key="index">
+                                    <div class="relative group aspect-square rounded-lg overflow-hidden border border-slate-200 bg-white shadow-sm hover:shadow-md transition">
+                                        <img :src="'../' + imgUrl" class="w-full h-full object-cover">
+                                        <!-- Silme Butonu Overlay -->
+                                        <div class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center backdrop-blur-[1px]">
+                                            <button @click="removeImage(index)" class="w-10 h-10 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition shadow-lg tooltip" title="Görseli Sil">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-4 sm:px-6 py-4 border-t border-slate-200 bg-white flex justify-between items-center shrink-0">
+                <template x-if="modalMode === 'edit' && currentUser.can_delete">
+                    <button @click="deleteRecord(formData.id)" class="px-5 py-2.5 sm:py-2 text-red-600 font-medium hover:bg-red-50 rounded-xl transition flex items-center gap-2">
+                        <i class="fa-solid fa-trash"></i> <span class="hidden sm:inline">Kaydı Sil</span>
+                    </button>
+                </template>
+                <div class="flex-1"></div>
+                <div class="flex gap-2 sm:gap-3">
+                    <button @click="closeModal()" class="px-5 py-2.5 sm:py-2 border border-slate-300 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition shadow-sm">
+                        İptal
+                    </button>
+                    <template x-if="currentUser.can_edit || modalMode === 'add'">
+                        <button @click="saveRecord()" class="px-6 py-2.5 sm:py-2 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">
+                            <i class="fa-solid fa-check"></i> <span class="hidden sm:inline">Kaydet</span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+            
+            
+        </div>
+    </div>
+
+    <!-- Iframe Preview Modal -->
+    <div x-show="isPreviewModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" x-cloak>
+        <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" @click="closePreviewModal()"></div>
+        <div class="relative bg-white w-full max-w-6xl h-full max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden" 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
+                        <i class="fa-solid fa-desktop"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Vatandaş Önizleme Ekranı</h3>
+                        <p class="text-sm text-slate-500 font-medium">Bu ekran, vatandaşın gördüğü detay sayfasıdır.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a :href="previewUrl" target="_blank" class="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 rounded-xl transition" title="Yeni Sekmede Aç">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                    <button @click="closePreviewModal()" class="w-10 h-10 flex items-center justify-center bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800 rounded-xl transition">
+                        <i class="fa-solid fa-times text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Iframe Container -->
+            <div class="flex-1 w-full bg-slate-100 relative">
+                <!-- Loading Spinner (Visible before iframe loads) -->
+                <div x-show="isPreviewLoading" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-white z-10">
+                    <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-4"></i>
+                    <span class="font-medium">Sayfa Yükleniyor...</span>
+                </div>
+                <!-- Iframe -->
+                <iframe :src="previewUrl" class="w-full h-full border-none" @load="isPreviewLoading = false"></iframe>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mezarlık Düzenle Modal -->
+    <div x-show="isMezarlikModalOpen" x-cloak class="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+             x-show="isMezarlikModalOpen" x-transition.scale.95 @click.away="closeMezarlikModal()">
+            
+            <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h3 class="text-xl font-bold text-slate-800" x-text="mezarlikModalMode === 'edit' ? 'Mezarlık Bilgilerini Düzenle' : 'Yeni Mezarlık Detayları'"></h3>
+                <button @click="closeMezarlikModal()" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition">
+                    <i class="fa-solid fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Mezarlık Adı <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="editMezarlikForm.ad" class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Kapasite (Kişi)</label>
+                        <input type="number" x-model="editMezarlikForm.kapasite" placeholder="Örn: 5000" inputmode="numeric" class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Toplam Alan (m²)</label>
+                        <input type="number" x-model="editMezarlikForm.alan_m2" placeholder="Örn: 15000" inputmode="numeric" class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Kısa Açıklama (Tanıtım)</label>
+                    <textarea x-model="editMezarlikForm.aciklama" rows="3" placeholder="Mezarlık hakkında ziyaretçilere gösterilecek kısa bilgi..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tarihçe & Özel Bilgiler</label>
+                    <textarea x-model="editMezarlikForm.tarihce" rows="4" placeholder="Kuruluş yılı, hikayesi veya bilinen önemli şahsiyetler..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-navy outline-none"></textarea>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+                <button @click="closeMezarlikModal()" class="px-5 py-2.5 border border-slate-300 text-slate-600 font-medium rounded-xl hover:bg-slate-100 transition shadow-sm">
+                    İptal
+                </button>
+                <button @click="saveMezarlik()" class="px-6 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-save"></i> Kaydet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Defin Belgesi / Çıktı Şablonu Modal -->
+    <div x-show="isDocTemplateModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" x-cloak>
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="isDocTemplateModalOpen = false"></div>
+        <div class="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100">
+            
+            <div class="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-file-contract text-brand-navy mr-2"></i>Resmi Belge Çıktısı</h3>
+                    <p class="text-xs text-slate-500 mt-1" x-text="'Seçilen Kayıt ID: ' + docTemplateRecordId"></p>
+                </div>
+                <button @click="isDocTemplateModalOpen = false" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-times text-xl"></i></button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto flex-1">
+                <div class="bg-blue-50 text-blue-800 text-sm p-4 rounded-xl border border-blue-100 mb-5">
+                    <i class="fa-solid fa-circle-info mr-1"></i>
+                    Belgede yer almasını istediğiniz alanları aşağıdan seçebilirsiniz. Seçimleriniz tarayıcınıza kaydedilir.
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Alanlar -->
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.tc_no" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">TC Kimlik No</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition bg-slate-50 opacity-70">
+                        <input type="checkbox" checked disabled class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Ad Soyad (Zorunlu)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.baba_adi" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Baba Adı</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.anne_adi" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Anne Adı</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition bg-slate-50 opacity-70">
+                        <input type="checkbox" checked disabled class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Mezarlık Bilgisi (Zorunlu)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition bg-slate-50 opacity-70">
+                        <input type="checkbox" checked disabled class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Ölüm Tarihi (Zorunlu)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.defin_tarihi" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Defin Tarihi</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.dogum_tarihi" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Doğum Tarihi</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.il_ilce" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">İl / İlçe</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.yakin_bilgisi" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Cenaze Yakını Bilgisi</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.muvafakatname" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Yayın Onay Metni (Muvafakatname)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                        <input type="checkbox" x-model="docFields.sol_imza" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                        <span class="text-sm font-semibold text-slate-700">Sol İmza Bloğu (Sorumlu)</span>
+                    </label>
+                    <div class="p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
+                        <label class="flex items-center gap-3 cursor-pointer mb-2">
+                            <input type="checkbox" x-model="docFields.sag_imza" class="w-5 h-5 rounded text-brand-navy focus:ring-brand-navy">
+                            <span class="text-sm font-semibold text-slate-700">Sağ İmza Bloğu</span>
+                        </label>
+                        
+                        <div x-show="docFields.sag_imza" class="pl-8 flex flex-col gap-2 mt-2" x-transition>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" x-model="docFields.sag_imza_tipi" value="mudur" class="text-brand-navy focus:ring-brand-navy">
+                                <span class="text-xs text-slate-600">Birim Sorumlusu (Müdür)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" x-model="docFields.sag_imza_tipi" value="yakin" class="text-brand-navy focus:ring-brand-navy">
+                                <span class="text-xs text-slate-600">Cenaze Yakını (Kayıttaki kişi)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex items-center justify-between border-t border-slate-100 pt-5">
+                    <button @click="saveDocTemplatePreferences()" class="text-brand-navy font-bold text-sm hover:underline flex items-center gap-2">
+                        <i class="fa-solid fa-save"></i> Seçimlerimi Kaydet (Varsayılan Yap)
+                    </button>
+                </div>
+            </div>
+            
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-3 shrink-0">
+                <button @click="generateDocument('word')" class="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-word text-lg"></i> Word
+                </button>
+                <button @click="generateDocument('pdf')" class="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition shadow-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-pdf text-lg"></i> PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toplu Kayıt (Excel) Yükleme Modal -->
+    <div x-show="isExcelImportModalOpen" class="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6" x-cloak>
+        <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" @click="closeExcelImportModal()" x-show="!excelImportLoading"></div>
+        <div class="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95">
+            
+            <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                        <i class="fa-solid fa-file-excel text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-extrabold text-slate-800">Toplu Kayıt Yükle</h3>
+                        <p class="text-xs font-semibold text-slate-500">Excel formatında verilerinizi sisteme aktarın.</p>
+                    </div>
+                </div>
+                <button @click="closeExcelImportModal()" class="w-8 h-8 flex items-center justify-center bg-slate-200 text-slate-500 hover:bg-slate-300 hover:text-slate-800 rounded-lg transition" :disabled="excelImportLoading">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 flex flex-col gap-6 relative">
+                <div x-show="excelImportLoading" class="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                    <i class="fa-solid fa-circle-notch fa-spin text-4xl text-emerald-600 mb-4"></i>
+                    <p class="font-bold text-slate-700">Veriler İşleniyor...</p>
+                    <p class="text-sm text-slate-500 text-center mt-2">Bu işlem dosya boyutuna göre biraz zaman alabilir.</p>
+                </div>
+
+                <!-- Şablon İndirme Alanı -->
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-start gap-3">
+                        <i class="fa-solid fa-circle-info text-blue-500 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm font-bold text-blue-900">Örnek Şablonu İndirin</p>
+                            <p class="text-xs text-blue-700 mt-1">Sistemin sorunsuz çalışması için verilerinizi bu şablona uygun olarak doldurmalısınız.</p>
+                        </div>
+                    </div>
+                    <button @click="downloadExcelTemplate()" class="shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-lg shadow-sm transition flex items-center gap-2">
+                        <i class="fa-solid fa-download"></i> Şablonu İndir
+                    </button>
+                </div>
+
+                <!-- Dosya Yükleme Alanı -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-sm font-bold text-slate-700">Excel Dosyanızı Seçin (.xlsx)</label>
+                    <label for="excelFileInput" class="w-full flex flex-col items-center justify-center px-4 py-8 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-emerald-400 transition group relative overflow-hidden">
+                        
+                        <div class="flex flex-col items-center justify-center gap-3" :class="excelFileToImport ? 'opacity-0' : 'opacity-100'">
+                            <div class="w-12 h-12 bg-white rounded-full shadow-sm border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-emerald-500 group-hover:scale-110 transition">
+                                <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-sm font-bold text-slate-600 group-hover:text-emerald-600 transition">Tıklayın veya Sürükleyin</p>
+                                <p class="text-xs text-slate-400 mt-1">Maks. 5 MB</p>
+                            </div>
+                        </div>
+
+                        <!-- Seçili Dosya Gösterimi -->
+                        <div x-show="excelFileToImport" class="absolute inset-0 bg-emerald-50 flex flex-col items-center justify-center" style="display: none;">
+                            <i class="fa-solid fa-file-excel text-4xl text-emerald-500 mb-2"></i>
+                            <p class="font-bold text-emerald-800 text-center px-4 truncate w-full" x-text="excelFileToImport ? excelFileToImport.name : ''"></p>
+                            <p class="text-xs font-semibold text-emerald-600/70 mt-1">Seçim yapıldı, yüklemeye hazır.</p>
+                        </div>
+
+                        <input id="excelFileInput" type="file" accept=".xlsx" class="hidden" @change="handleExcelFileSelect">
+                    </label>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-3">
+                <button @click="closeExcelImportModal()" class="px-4 py-2.5 bg-white border border-slate-300 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition" :disabled="excelImportLoading">
+                    İptal
+                </button>
+                <button @click="submitExcelImport()" class="flex-1 px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm flex items-center justify-center gap-2" :disabled="!excelFileToImport || excelImportLoading">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Yükle ve Aktar
+                </button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
