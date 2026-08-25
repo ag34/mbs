@@ -16,7 +16,7 @@ class KioskBrowser(QMainWindow):
         self.browser = QWebEngineView()
         
         # Başlangıç adresini belirleyin (Buraya açılmasını istediğiniz adresi girin)
-        self.browser.setUrl(QUrl("https://www.google.com")) 
+        self.browser.setUrl(QUrl("https://ciftlikkoymbs.com/kiosk")) 
         
         self.setCentralWidget(self.browser)
 
