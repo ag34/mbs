@@ -697,9 +697,14 @@ document.addEventListener('alpine:init', () => {
 
                 const res = await apiService.saveMefta(payload);
                 if (res.status === 'success') {
-                    Swal.fire('Başarılı', res.message, 'success');
-                    this.closeModal();
+                    Swal.fire({ title: 'Başarılı', text: 'Kayıt başarıyla kaydedildi.', icon: 'success', timer: 1500, showConfirmButton: false });
                     this.loadData();
+                    if (this.modalMode === 'add') {
+                        this.resetForm();
+                        this.activeTab = 'kimlik';
+                    } else {
+                        this.closeModal();
+                    }
                 } else {
                     Swal.fire('Hata', res.message, 'error');
                 }
@@ -1353,9 +1358,14 @@ document.addEventListener('alpine:init', () => {
                     this.newUserForm = { id: null, username: '', password: '', ad_soyad: '', unvan: '', telefon: '', eposta: '' };
                     this.loadUsers();
                     
-                    // Kendi profilini güncellediyse headerı güncellemek için login isim alanını da güncelleyelim.
-                    if (this.userModalMode === 'edit' && this.currentUser.username === this.newUserForm.username) {
-                        this.currentUser.ad_soyad = this.newUserForm.ad_soyad;
+                    if (this.userModalMode === 'edit') {
+                        // Kendi profilini güncellediyse headerı ve localStorage'ı da güncelleyelim.
+                        if (this.currentUser.username === this.newUserForm.username || this.currentUser.username === localStorage.getItem('mbs_admin_user')) {
+                            this.currentUser.ad_soyad = this.newUserForm.ad_soyad;
+                            this.currentUser.username = this.newUserForm.username;
+                            localStorage.setItem('mbs_admin_name', this.newUserForm.ad_soyad);
+                            localStorage.setItem('mbs_admin_user', this.newUserForm.username);
+                        }
                     }
                 } else {
                     Swal.fire('Hata', res.message, 'error');
@@ -1368,9 +1378,22 @@ document.addEventListener('alpine:init', () => {
         async toggleUserPermission(userId, permType, currentValue) {
             if (!this.isAdmin) return;
             try {
-                const payload = { id: userId };
-                if (permType === 'can_edit') payload.can_edit = currentValue ? 0 : 1;
-                if (permType === 'can_delete') payload.can_delete = currentValue ? 0 : 1;
+                // Seçili kullanıcıyı tablodan bul
+                const user = this.users.find(u => u.id === userId) || this.selectedUserForPermission;
+                if (!user) return;
+                
+                // Mevcut tüm yetkileri payloada doldur (Backend hepsini birden istiyor)
+                const payload = { 
+                    id: userId,
+                    can_edit: user.can_edit,
+                    can_delete: user.can_delete,
+                    can_add: user.can_add,
+                    can_export: user.can_export,
+                    can_approve: user.can_approve
+                };
+                
+                // Tıklanan yetkinin değerini tersine çevir
+                payload[permType] = currentValue ? 0 : 1;
                 
                 const res = await apiService.updateUserPermissions(payload);
                 if (res.status === 'success') {

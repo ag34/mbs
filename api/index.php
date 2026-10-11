@@ -32,6 +32,14 @@ try { $pdo->exec("ALTER TABLE mezarliklar ADD COLUMN aciklama TEXT NULL"); } cat
 try { $pdo->exec("ALTER TABLE mezarliklar ADD COLUMN tarihce TEXT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE mezarliklar ADD COLUMN kapasite INT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE mezarliklar ADD COLUMN alan_m2 INT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE mezarliklar ADD COLUMN lat DECIMAL(10, 8) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE mezarliklar ADD COLUMN lng DECIMAL(11, 8) NULL"); } catch (Exception $e) {}
+try {
+    $pdo->exec("UPDATE mezarliklar SET lat = 40.659362, lng = 29.341737 WHERE id = 1 AND lat IS NULL");
+    $pdo->exec("UPDATE mezarliklar SET lat = 40.648000, lng = 29.362000 WHERE id = 2 AND lat IS NULL");
+    $pdo->exec("UPDATE mezarliklar SET lat = 40.655000, lng = 29.330000 WHERE id = 3 AND lat IS NULL");
+    $pdo->exec("UPDATE mezarliklar SET lat = 40.661000, lng = 29.355000 WHERE id = 4 AND lat IS NULL");
+} catch (Exception $e) {}
 
 // SMTP varsayılan ayarları ekle
 try {
@@ -151,7 +159,7 @@ checkIPRestriction($pdo, $action);
 
 // Kimlik Doğrulama Bariyeri (Zorunlu)
 $currentUser = null;
-if (!in_array($action, ['login', 'vatandas_sorgu', 'qr_code', 'help', 'mezarliklar', 'kiosk_settings', 'kiosk_save_location', 'download_excel_template'])) {
+if (!in_array($action, ['login', 'vatandas_sorgu', 'qr_code', 'help', 'mezarliklar', 'mezarlik_save_location', 'kiosk_settings', 'kiosk_save_location', 'download_excel_template'])) {
     $currentUser = checkAuth($pdo);
 }
 
@@ -232,6 +240,10 @@ switch ($action) {
 
     case 'mezarliklar':
         handleMezarliklar($pdo);
+        break;
+
+    case 'mezarlik_save_location':
+        handleMezarlikSaveLocation($pdo);
         break;
 
     case 'harita_verisi':
@@ -568,7 +580,29 @@ function handleLogin($pdo) {
 
         $hashedInputPassword = hash('sha512', $password);
 
-        if (!$user || $user['password'] !== $hashedInputPassword) {
+        if (!$user) {
+            logAuditAction($pdo, 'LOGIN_FAILED', 'YONETIM_PANELI', "Başarısız giriş denemesi - Kullanıcı Adı: $username");
+            sendJsonResponse(['status' => 'error', 'message' => 'Hatalı kullanıcı adı veya şifre!'], 401);
+        }
+
+        // Önce sha512 hash ile karşılaştır, tutmazsa düz metin şifre ile dene
+        // (phpMyAdmin'den elle değiştirilen şifreler düz metin olarak kalır)
+        $passwordMatch = false;
+        if ($user['password'] === $hashedInputPassword) {
+            $passwordMatch = true;
+        } elseif ($user['password'] === $password) {
+            // Düz metin şifre eşleşti - otomatik olarak sha512'ye dönüştür
+            $passwordMatch = true;
+            try {
+                $migrateStmt = $pdo->prepare("UPDATE users SET password = :pass WHERE id = :id");
+                $migrateStmt->execute([':pass' => $hashedInputPassword, ':id' => $user['id']]);
+                error_log("MBS: Kullanıcı #{$user['id']} ({$user['username']}) şifresi düz metinden sha512'ye otomatik dönüştürüldü.");
+            } catch (Exception $e) {
+                error_log("MBS: Şifre hash dönüşüm hatası: " . $e->getMessage());
+            }
+        }
+
+        if (!$passwordMatch) {
             logAuditAction($pdo, 'LOGIN_FAILED', 'YONETIM_PANELI', "Başarısız giriş denemesi - Kullanıcı Adı: $username");
             sendJsonResponse(['status' => 'error', 'message' => 'Hatalı kullanıcı adı veya şifre!'], 401);
         }
@@ -1410,7 +1444,7 @@ function getPdfReportHtml($results, $autoPrint = false, $sys = []) {
 function handleKullanicilar($pdo) {
     requirePermission('can_add');
     try {
-        $stmt = $pdo->query("SELECT id, username, ad_soyad, unvan, role, durum, eposta, telefon, can_delete, can_edit, can_add, can_export, created_at FROM users ORDER BY id DESC");
+        $stmt = $pdo->query("SELECT id, username, ad_soyad, unvan, role, durum, eposta, telefon, can_delete, can_edit, can_add, can_export, can_approve, created_at FROM users ORDER BY id DESC");
         $users = $stmt->fetchAll();
         foreach ($users as &$u) {
             $u['created_at'] = formatDisplayDate($u['created_at']);
@@ -1418,6 +1452,7 @@ function handleKullanicilar($pdo) {
             $u['can_edit'] = intval($u['can_edit'] ?? 1);
             $u['can_add'] = intval($u['can_add'] ?? 1);
             $u['can_export'] = intval($u['can_export'] ?? 1);
+            $u['can_approve'] = intval($u['can_approve'] ?? 0);
         }
         sendJsonResponse(['status' => 'success', 'data' => $users]);
     } catch (Exception $e) {
@@ -1453,7 +1488,7 @@ function handleKullaniciEkle($pdo) {
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':user' => $username,
-            ':pass' => $hashedPassword,
+            ':pass' => hash('sha512', $password),
             ':ad_soyad' => $adSoyad,
             ':unvan' => $unvan,
             ':role' => $role,
@@ -1498,7 +1533,6 @@ function handleKullaniciDuzenle($pdo) {
         $params = [
             ':a' => $adSoyad,
             ':unv' => $unvan,
-            ':r' => $input['role'] ?? 'staff',
             ':ep' => $eposta,
             ':tel' => $telefon,
             ':d' => $durum,
@@ -1771,11 +1805,32 @@ function handleVatandasSorgu($pdo) {
 
 function handleMezarliklar($pdo) {
     try {
-        $stmt = $pdo->query("SELECT m.id, m.ad, m.kod, m.aciklama, m.tarihce, (SELECT COUNT(id) FROM defin_kayitlari WHERE mezarlik_id = m.id) as defin_sayisi FROM mezarliklar m");
+        $stmt = $pdo->query("SELECT m.id, m.ad, m.kod, m.aciklama, m.tarihce, m.lat, m.lng, (SELECT COUNT(id) FROM defin_kayitlari WHERE mezarlik_id = m.id) as defin_sayisi FROM mezarliklar m ORDER BY m.id ASC");
         sendJsonResponse(['status' => 'success', 'data' => $stmt->fetchAll()]);
     } catch (Exception $e) {
         error_log("Mezarliklar Query Error: " . $e->getMessage());
         sendJsonResponse(['status' => 'error', 'message' => $e->getMessage()], 500);
+    }
+}
+
+function handleMezarlikSaveLocation($pdo) {
+    try {
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true) ?? $_POST;
+        $id = intval($input['id'] ?? 0);
+        $lat = isset($input['lat']) && $input['lat'] !== '' ? floatval($input['lat']) : null;
+        $lng = isset($input['lng']) && $input['lng'] !== '' ? floatval($input['lng']) : null;
+
+        if ($id <= 0 || !$lat || !$lng) {
+            sendJsonResponse(['status' => 'error', 'message' => 'Geçersiz ID veya koordinat bilgisi.'], 400);
+        }
+
+        $stmt = $pdo->prepare("UPDATE mezarliklar SET lat = :lat, lng = :lng WHERE id = :id");
+        $stmt->execute([':lat' => $lat, ':lng' => $lng, ':id' => $id]);
+
+        sendJsonResponse(['status' => 'success', 'message' => 'Mezarlık konumu başarıyla güncellendi.']);
+    } catch (Exception $e) {
+        sendJsonResponse(['status' => 'error', 'message' => 'Konum kayıt hatası: ' . $e->getMessage()], 500);
     }
 }
 
@@ -1788,6 +1843,8 @@ function handleMezarlikEkle($pdo) {
         $tarihce = trim($input['tarihce'] ?? '');
         $kapasite = $input['kapasite'] !== '' ? intval($input['kapasite']) : null;
         $alan_m2 = $input['alan_m2'] !== '' ? intval($input['alan_m2']) : null;
+        $lat = isset($input['lat']) && $input['lat'] !== '' ? floatval($input['lat']) : null;
+        $lng = isset($input['lng']) && $input['lng'] !== '' ? floatval($input['lng']) : null;
         
         if (empty($ad)) {
             sendJsonResponse(['status' => 'error', 'message' => 'Mezarlık adı zorunludur.'], 400);
@@ -1797,14 +1854,16 @@ function handleMezarlikEkle($pdo) {
         $kod = strtolower(str_replace([' ', 'ı', 'ğ', 'ü', 'ş', 'ö', 'ç', 'I', 'Ğ', 'Ü', 'Ş', 'Ö', 'Ç'], ['-', 'i', 'g', 'u', 's', 'o', 'c', 'i', 'g', 'u', 's', 'o', 'c'], $ad));
         $kod = preg_replace('/[^a-z0-9\-]/', '', $kod);
 
-        $stmt = $pdo->prepare("INSERT INTO mezarliklar (ad, kod, aciklama, tarihce, kapasite, alan_m2) VALUES (:ad, :kod, :aciklama, :tarihce, :kapasite, :alan)");
+        $stmt = $pdo->prepare("INSERT INTO mezarliklar (ad, kod, aciklama, tarihce, kapasite, alan_m2, lat, lng) VALUES (:ad, :kod, :aciklama, :tarihce, :kapasite, :alan, :lat, :lng)");
         $stmt->execute([
             ':ad' => $ad, 
             ':kod' => $kod, 
             ':aciklama' => $aciklama, 
             ':tarihce' => $tarihce,
             ':kapasite' => $kapasite,
-            ':alan' => $alan_m2
+            ':alan' => $alan_m2,
+            ':lat' => $lat,
+            ':lng' => $lng
         ]);
 
         logAuditAction($pdo, 'MEZARLIK_EKLE', 'YONETIM_PANELI', "Yeni mezarlık eklendi: $ad");
@@ -1824,18 +1883,22 @@ function handleMezarlikDuzenle($pdo) {
         $tarihce = trim($input['tarihce'] ?? '');
         $kapasite = $input['kapasite'] !== '' ? intval($input['kapasite']) : null;
         $alan_m2 = $input['alan_m2'] !== '' ? intval($input['alan_m2']) : null;
+        $lat = isset($input['lat']) && $input['lat'] !== '' ? floatval($input['lat']) : null;
+        $lng = isset($input['lng']) && $input['lng'] !== '' ? floatval($input['lng']) : null;
         
         if ($id <= 0 || empty($ad)) {
             sendJsonResponse(['status' => 'error', 'message' => 'Geçersiz ID veya Mezarlık adı.'], 400);
         }
 
-        $stmt = $pdo->prepare("UPDATE mezarliklar SET ad = :ad, aciklama = :aciklama, tarihce = :tarihce, kapasite = :kapasite, alan_m2 = :alan WHERE id = :id");
+        $stmt = $pdo->prepare("UPDATE mezarliklar SET ad = :ad, aciklama = :aciklama, tarihce = :tarihce, kapasite = :kapasite, alan_m2 = :alan, lat = :lat, lng = :lng WHERE id = :id");
         $stmt->execute([
             ':ad' => $ad, 
             ':aciklama' => $aciklama, 
             ':tarihce' => $tarihce, 
             ':kapasite' => $kapasite,
             ':alan' => $alan_m2,
+            ':lat' => $lat,
+            ':lng' => $lng,
             ':id' => $id
         ]);
 

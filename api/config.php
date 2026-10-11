@@ -24,9 +24,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
 // ====================================================================
 define('DB_TYPE', 'mysql'); 
 
-define('MYSQL_HOST', '127.0.0.1'); 
-define('MYSQL_DB',   'epikmedya_mbs');
-define('MYSQL_USER', 'epikmedya_admin');
+define('MYSQL_HOST', 'localhost'); 
+define('MYSQL_DB',   'ciftli10_mbs'); 
+define('MYSQL_USER', 'ciftli10_yonetici');
 define('MYSQL_PASS', 'Jamiryo123.');
 
 function getDbConnection() {
@@ -132,6 +132,7 @@ function initMySqlDb($pdo) {
     try { $pdo->exec("ALTER TABLE users ADD COLUMN can_edit INT DEFAULT 1"); } catch(Exception $e) {}
     try { $pdo->exec("ALTER TABLE users ADD COLUMN can_add INT DEFAULT 1"); } catch(Exception $e) {}
     try { $pdo->exec("ALTER TABLE users ADD COLUMN can_export INT DEFAULT 1"); } catch(Exception $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN can_approve INT DEFAULT 0"); } catch(Exception $e) {}
     try { $pdo->exec("UPDATE users SET can_delete = 1, can_edit = 1, can_add = 1, can_export = 1 WHERE role = 'superadmin'"); } catch(Exception $e) {}
 
     // 5. Gorsel URL Migration to JSON array

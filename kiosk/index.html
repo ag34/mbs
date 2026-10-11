@@ -125,46 +125,85 @@
         <p class="text-lg md:text-2xl text-slate-300">İnternet bağlantısı bekleniyor. Lütfen bekleyiniz...</p>
     </div>
 
-    <!-- 0. Setup Screen -->
-    <div x-show="showSetup" x-cloak class="absolute inset-0 bg-slate-900/60 z-[100] flex flex-col items-center justify-center p-4 md:p-8 backdrop-blur-2xl">
-        <div class="bg-white rounded-3xl md:rounded-[40px] p-6 md:p-10 max-w-3xl w-full shadow-2xl text-center border border-white/20 flex flex-col max-h-[90vh]">
-            <div class="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-brand-navy to-indigo-900 text-white rounded-full flex items-center justify-center text-3xl md:text-5xl mx-auto mb-4 md:mb-6 shadow-lg shadow-brand-navy/30 shrink-0">
-                <i class="fa-solid fa-cogs"></i>
-            </div>
-            <h2 class="text-2xl md:text-4xl font-black text-slate-800 mb-2 md:mb-4 shrink-0">Kiosk İlk Kurulum</h2>
-            <p class="text-slate-500 mb-4 md:mb-8 text-md md:text-xl font-medium shrink-0">Bu Kiosk cihazının yerini belirleyip harita rotalarının doğru çizilmesini sağlamak için konumu kaydedin.</p>
-            
-            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 flex-1 w-full max-w-2xl mx-auto">
-                <button @click="saveKioskLocation()" :disabled="isLocating" class="kiosk-btn flex-1 w-full p-6 bg-gradient-to-r from-brand-green to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-2xl md:rounded-3xl font-black shadow-xl shadow-green-900/20 flex flex-col items-center justify-center gap-3 transition-all disabled:opacity-50">
-                    <div class="bg-white/20 p-3 rounded-full flex items-center justify-center">
-                        <i class="fa-solid fa-location-crosshairs text-3xl md:text-4xl" :class="isLocating ? 'fa-spin' : ''"></i>
+    <!-- 0. Setup Screen (Mezarlık Seçimi & Konumlandırma) -->
+    <div x-show="showSetup" x-cloak class="absolute inset-0 bg-slate-900/80 z-[100] flex flex-col items-center justify-center p-3 md:p-6 backdrop-blur-2xl">
+        <div class="bg-white rounded-3xl md:rounded-[36px] p-5 md:p-8 max-w-4xl w-full shadow-2xl border border-white/20 flex flex-col max-h-[95vh] overflow-hidden">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-brand-navy to-indigo-900 text-white rounded-2xl flex items-center justify-center text-2xl shadow-md">
+                        <i class="fa-solid fa-monument"></i>
                     </div>
-                    <span class="text-xl md:text-2xl" x-text="isLocating ? 'Konum Alınıyor...' : 'Konumu Otomatik Al'"></span>
+                    <div class="text-left">
+                        <h2 class="text-xl md:text-3xl font-black text-slate-800 tracking-tight">Kiosk Cihaz Kurulumu</h2>
+                        <p class="text-xs md:text-sm text-slate-500 font-medium">Bu cihazın bulunduğu mezarlığı seçin ve kiosk konumunu onaylayın</p>
+                    </div>
+                </div>
+                <button x-show="kioskMezarlikId" @click="showSetup = false" class="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-lg transition-all">
+                    <i class="fa-solid fa-times"></i>
                 </button>
-                <button @click="useDefaultLocation()" :disabled="isLocating" class="kiosk-btn flex-1 w-full p-6 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl md:rounded-3xl font-black shadow-xl flex flex-col items-center justify-center gap-3 transition-all disabled:opacity-50">
-                    <div class="bg-white/20 p-3 rounded-full flex items-center justify-center">
-                        <i class="fa-solid fa-map-pin text-3xl md:text-4xl text-emerald-400"></i>
-                    </div>
-                    <span class="text-xl md:text-2xl">Çiftlikköy Konumunu Ata</span>
+            </div>
+
+            <!-- Mezarlık Listesi (Dinamik) -->
+            <div class="mt-4 shrink-0">
+                <div class="text-xs md:text-sm font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-location-dot text-brand-green"></i> 1. Kiosk Hangi Mezarlıkta Kurulu?
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 max-h-[28vh] overflow-y-auto p-1">
+                    <template x-for="m in mezarliklar" :key="m.id">
+                        <div @click="onMezarlikSelected(m)" 
+                             :class="selectedMezarlik && selectedMezarlik.id === m.id ? 'border-brand-green bg-emerald-50 text-emerald-950 ring-2 ring-brand-green shadow-md scale-[1.02]' : 'border-slate-200 hover:border-slate-300 bg-slate-50/70 text-slate-700'"
+                             class="cursor-pointer p-3 md:p-4 rounded-2xl border-2 transition-all flex flex-col justify-between text-left select-none">
+                            <div>
+                                <div class="font-black text-sm md:text-base leading-tight mb-1" x-text="m.ad"></div>
+                                <div class="text-[11px] md:text-xs opacity-75 font-semibold" x-text="`${m.defin_sayisi || 0} Defin`"></div>
+                            </div>
+                            <div class="mt-2 flex items-center justify-between">
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :class="selectedMezarlik && selectedMezarlik.id === m.id ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'" x-text="m.kod || ('MEZ-0' + m.id)"></span>
+                                <i class="fa-solid fa-circle-check text-base" :class="selectedMezarlik && selectedMezarlik.id === m.id ? 'text-brand-green' : 'text-slate-300'"></i>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Harita Önizleme ve İnce Ayar -->
+            <div class="mt-4 flex-1 min-h-[160px] md:min-h-[220px] flex flex-col">
+                <div class="text-xs md:text-sm font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-map text-blue-600"></i> 2. Kiosk Giriş Noktası (Haritaya dokunarak pinleyin)</span>
+                    <span class="text-[11px] font-mono text-slate-400" x-text="tempKioskLat ? `${tempKioskLat.toFixed(5)}, ${tempKioskLng.toFixed(5)}` : ''"></span>
+                </div>
+                <div class="flex-1 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-inner relative">
+                    <div id="setupMapContainer" class="w-full h-full min-h-[160px]"></div>
+                </div>
+            </div>
+
+            <!-- Kaydet Butonu -->
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
+                <button @click="saveKioskConfiguration()" :disabled="!selectedMezarlik" class="kiosk-btn w-full md:w-auto px-8 py-4 bg-gradient-to-r from-brand-green to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-2xl font-black shadow-xl shadow-green-900/20 flex items-center justify-center gap-3 transition-all disabled:opacity-40 text-lg md:text-xl">
+                    <i class="fa-solid fa-check-circle text-2xl"></i>
+                    <span>Bu Mezarlığı & Konumu Kaydet</span>
                 </button>
             </div>
         </div>
     </div>
 
     <!-- Header Katmanı -->
-    <header class="relative z-10 glass-panel mx-4 mt-2 md:mx-6 md:mt-4 rounded-2xl md:rounded-[20px] p-2 md:p-3 flex items-center justify-center shrink-0">
-        <div class="flex items-center gap-3 md:gap-5">
+    <header class="relative z-10 glass-panel mx-4 mt-2 md:mx-6 md:mt-4 rounded-2xl md:rounded-[20px] p-2 md:p-3 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3 md:gap-5 cursor-pointer select-none" @click="handleHeaderClick()">
             <div class="p-1 md:p-2 bg-white rounded-xl md:rounded-[15px] shadow-sm border border-slate-100">
                 <img :src="settings.logo_url" alt="Logo" class="h-8 md:h-12 w-auto object-contain pointer-events-none" x-show="settings.logo_url">
             </div>
-            <div class="text-center">
+            <div>
                 <h1 class="text-lg md:text-2xl font-black text-slate-800 tracking-tight" x-text="settings.belediye_adi"></h1>
-                <p class="text-xs md:text-lg font-bold text-brand-green mt-0.5">Mezarlık Bilgi Sistemi</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                    <p class="text-xs md:text-lg font-bold text-brand-green">Mezarlık Bilgi Sistemi</p>
+                    <span x-show="kioskMezarlikAdi" class="px-2 py-0.5 bg-brand-green/10 text-brand-green border border-brand-green/20 rounded-full text-xs md:text-sm font-black" x-text="kioskMezarlikAdi"></span>
+                </div>
             </div>
         </div>
 
         <!-- Navigation Buttons -->
-        <div x-show="step > 0" x-cloak x-transition class="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 flex gap-2 md:gap-3">
+        <div x-show="step > 0" x-cloak x-transition class="flex gap-2 md:gap-3">
             <button x-show="step > 1" @click="step = step - 1" class="kiosk-btn h-10 md:h-12 xl:h-14 px-3 md:px-5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl md:rounded-[15px] font-bold text-sm md:text-lg xl:text-xl shadow-sm flex items-center gap-2">
                 <i class="fa-solid fa-arrow-left"></i> <span class="hidden lg:inline">Geri Dön</span>
             </button>
@@ -274,6 +313,10 @@
                             <span class="text-brand-green mx-2 hidden md:inline">&bull;</span><br class="md:hidden" />
                             <span class="text-brand-green" x-text="(selected.ada_no_text||selected.ada_no||'') + '. Ada / ' + (selected.parsel_no_text||selected.parsel_no||'') + '. Parsel'"></span>
                         </p>
+                        <div x-show="kioskMezarlikId && selected.mezarlik_id && (parseInt(selected.mezarlik_id) !== kioskMezarlikId)" class="mt-2 p-2 px-3 bg-amber-50 border border-amber-300 text-amber-900 rounded-xl font-bold flex items-center gap-2 text-xs md:text-sm">
+                            <i class="fa-solid fa-triangle-exclamation text-amber-600 text-lg shrink-0"></i>
+                            <span>Farklı Mezarlık: Bu mevta <b><span x-text="selected.mezarlik_adi"></span></b> içerisindedir. Şu an <b><span x-text="kioskMezarlikAdi"></span></b> noktasındasınız.</span>
+                        </div>
                     </div>
                 </div>
                 <!-- Actions (QR & Draw Route) -->
@@ -392,20 +435,28 @@
  function kioskApp() {
  return {
  settings: {
- belediye_adi: 'Yükleniyor...',
- logo_url: ''
+  belediye_adi: 'Yükleniyor...',
+  logo_url: ''
  },
  mezarliklar: [],
+ selectedMezarlik: null,
+ kioskMezarlikId: null,
+ kioskMezarlikAdi: '',
+ kioskLat: null,
+ kioskLng: null,
+ tempKioskLat: null,
+ tempKioskLng: null,
+ showSetup: false,
+ setupMap: null,
+ setupMarker: null,
+ headerClicks: 0,
+ headerTimer: null,
+ 
  kioskAds: [],
  currentAdIndex: 0,
  adInterval: null,
  
- showSetup: false,
- kioskLat: null,
- kioskLng: null,
- isLocating: false,
- 
- enableFatiha: true, // İstenildiğinde kapatılabilir (false yapılır)
+ enableFatiha: true,
  isOffline: !navigator.onLine,
  showFatihaModal: false,
 
@@ -425,294 +476,384 @@
  graveMarkerObj: null,
  
  idleTimer: null,
- idleTimeout: 60000, // 60 saniye hareketsizlik
+ idleTimeout: 60000,
 
  keyboardLayout: [
- ['Q','W','E','R','T','Y','U','I','O','P','Ğ','Ü'],
- ['A','S','D','F','G','H','J','K','L','Ş','İ'],
- ['Z','X','C','V','B','N','M','Ö','Ç']
+  ['Q','W','E','R','T','Y','U','I','O','P','Ğ','Ü'],
+  ['A','S','D','F','G','H','J','K','L','Ş','İ'],
+  ['Z','X','C','V','B','N','M','Ö','Ç']
  ],
 
  async init() {
   window.addEventListener('offline', () => { this.isOffline = true; });
   window.addEventListener('online', () => { this.isOffline = false; });
-  await this.loadSettings();
- if (this.settings.kiosk_lat && this.settings.kiosk_lng) {
- this.kioskLat = parseFloat(this.settings.kiosk_lat);
- this.kioskLng = parseFloat(this.settings.kiosk_lng);
- this.showSetup = false;
- this.startApp();
- } else {
- this.showSetup = true;
- }
- },
+  
+  // 1. Ayarları ve Mezarlıkları dinamik yükle
+  await Promise.all([this.loadSettings(), this.loadMezarliklar()]);
+  
+  // 2. Cihaz hafızasından (localStorage) Kiosk Mezarlık & Konum kontrolü
+  const savedMezarlikId = localStorage.getItem('kiosk_mezarlik_id');
+  const savedLat = localStorage.getItem('kiosk_lat');
+  const savedLng = localStorage.getItem('kiosk_lng');
+  const savedAdi = localStorage.getItem('kiosk_mezarlik_adi');
 
- async loadSettings() {
- try {
- const res = await fetch('../api/index.php?action=kiosk_settings');
- const json = await res.json();
- if (json.status === 'success' && json.data) {
- this.settings.belediye_adi = json.data.belediye_adi || 'MBS Kiosk';
- this.settings.logo_url = json.data.logo_url ? (json.data.logo_url.startsWith('http') ? json.data.logo_url : '../' + json.data.logo_url) : '';
- this.settings.kiosk_lat = json.data.kiosk_lat;
- this.settings.kiosk_lng = json.data.kiosk_lng;
- 
- if (json.data.kiosk_ads) {
- try {
- this.kioskAds = JSON.parse(json.data.kiosk_ads);
- } catch(e){}
- }
- }
- } catch(e) {}
- },
-
- async persistKioskLocation(lat, lng) {
-  this.kioskLat = lat;
-  this.kioskLng = lng;
-  try {
-   await fetch('../api/index.php?action=kiosk_save_location', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lat: this.kioskLat, lng: this.kioskLng })
-   });
-  } catch(e) { console.error("Konum veritabanına kaydedilemedi:", e); }
-  this.showSetup = false;
-  this.isLocating = false;
-  this.startApp();
- },
-
- saveKioskLocation() {
-  this.isLocating = true;
-  const DEFAULT_LAT = 40.6520;
-  const DEFAULT_LNG = 29.3520;
-
-  const fallbackLocation = async () => {
-   try {
-    const res = await fetch('https://ipapi.co/json/');
-    if (res.ok) {
-     const data = await res.json();
-     if (data && data.latitude && data.longitude) {
-      await this.persistKioskLocation(parseFloat(data.latitude), parseFloat(data.longitude));
-      return;
-     }
-    }
-   } catch(e) {}
-   await this.persistKioskLocation(DEFAULT_LAT, DEFAULT_LNG);
-  };
-
-  if ("geolocation" in navigator) {
-   navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-     await this.persistKioskLocation(pos.coords.latitude, pos.coords.longitude);
-    }, 
-    async (err) => {
-     console.warn("GPS konumu alınamadı, yedek deneniyor:", err);
-     await fallbackLocation();
-    }, 
-    { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
-   );
+  if (savedMezarlikId && savedLat && savedLng) {
+   this.kioskMezarlikId = parseInt(savedMezarlikId);
+   this.kioskMezarlikAdi = savedAdi || '';
+   this.kioskLat = parseFloat(savedLat);
+   this.kioskLng = parseFloat(savedLng);
+   this.showSetup = false;
+   this.startApp();
   } else {
-   fallbackLocation();
+   this.openSetup();
   }
  },
 
- useDefaultLocation() {
-  this.isLocating = true;
-  this.persistKioskLocation(40.6520, 29.3520);
+ async loadSettings() {
+  try {
+   const res = await fetch('../api/index.php?action=kiosk_settings');
+   const json = await res.json();
+   if (json.status === 'success' && json.data) {
+    this.settings.belediye_adi = json.data.belediye_adi || 'MBS Kiosk';
+    this.settings.logo_url = json.data.logo_url ? (json.data.logo_url.startsWith('http') ? json.data.logo_url : '../' + json.data.logo_url) : '';
+    if (json.data.kiosk_ads) {
+     try {
+      this.kioskAds = JSON.parse(json.data.kiosk_ads);
+     } catch(e){}
+    }
+   }
+  } catch(e) {}
+ },
+
+ async loadMezarliklar() {
+  try {
+   const res = await fetch('../api/index.php?action=mezarliklar');
+   const json = await res.json();
+   if (json.status === 'success' && json.data) {
+    this.mezarliklar = json.data;
+   }
+  } catch(e) {
+   console.error("Mezarlıklar yüklenemedi:", e);
+  }
+ },
+
+ openSetup() {
+  this.showSetup = true;
+  if (this.mezarliklar.length > 0) {
+   let defaultM = null;
+   if (this.kioskMezarlikId) {
+    defaultM = this.mezarliklar.find(m => m.id === this.kioskMezarlikId);
+   }
+   if (!defaultM) {
+    defaultM = this.mezarliklar[0];
+   }
+   this.onMezarlikSelected(defaultM);
+  }
+ },
+
+ onMezarlikSelected(m) {
+  if (!m) return;
+  this.selectedMezarlik = m;
+  let lat = m.lat ? parseFloat(m.lat) : 40.659362;
+  let lng = m.lng ? parseFloat(m.lng) : 29.341737;
+  this.tempKioskLat = lat;
+  this.tempKioskLng = lng;
+  
+  this.$nextTick(() => {
+   this.initSetupMap(lat, lng);
+  });
+ },
+
+ initSetupMap(lat, lng) {
+  const el = document.getElementById('setupMapContainer');
+  if (!el) return;
+
+  if (!this.setupMap) {
+   this.setupMap = L.map('setupMapContainer', {
+    center: [lat, lng],
+    zoom: 17,
+    zoomControl: true,
+    attributionControl: false
+   });
+
+   L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+    maxZoom: 22,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+   }).addTo(this.setupMap);
+
+   const kioskIcon = L.divIcon({
+    html: '<div style="background:#1d4ed8; color:white; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 4px 10px rgba(0,0,0,0.4); font-size:18px;"><i class="fa-solid fa-location-dot"></i></div>',
+    className: '',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+   });
+
+   this.setupMarker = L.marker([lat, lng], { icon: kioskIcon, draggable: true }).addTo(this.setupMap);
+   
+   this.setupMarker.on('dragend', (e) => {
+    const pos = e.target.getLatLng();
+    this.tempKioskLat = pos.lat;
+    this.tempKioskLng = pos.lng;
+   });
+
+   this.setupMap.on('click', (e) => {
+    this.tempKioskLat = e.latlng.lat;
+    this.tempKioskLng = e.latlng.lng;
+    this.setupMarker.setLatLng(e.latlng);
+   });
+  } else {
+   this.setupMap.setView([lat, lng], 17);
+   if (this.setupMarker) {
+    this.setupMarker.setLatLng([lat, lng]);
+   }
+   setTimeout(() => {
+    this.setupMap.invalidateSize();
+   }, 200);
+  }
+ },
+
+ async saveKioskConfiguration() {
+  if (!this.selectedMezarlik) return;
+
+  this.kioskMezarlikId = this.selectedMezarlik.id;
+  this.kioskMezarlikAdi = this.selectedMezarlik.ad;
+  this.kioskLat = this.tempKioskLat || (this.selectedMezarlik.lat ? parseFloat(this.selectedMezarlik.lat) : 40.659362);
+  this.kioskLng = this.tempKioskLng || (this.selectedMezarlik.lng ? parseFloat(this.selectedMezarlik.lng) : 29.341737);
+
+  // Bu cihazın yerel hafızasına kaydet (cihaz bazlı bağımsız hafıza)
+  localStorage.setItem('kiosk_mezarlik_id', this.kioskMezarlikId);
+  localStorage.setItem('kiosk_mezarlik_adi', this.kioskMezarlikAdi);
+  localStorage.setItem('kiosk_lat', this.kioskLat);
+  localStorage.setItem('kiosk_lng', this.kioskLng);
+
+  // Mezarlık koordinatını sunucuda da güncelle (opsiyonel)
+  try {
+   await fetch('../api/index.php?action=mezarlik_save_location', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: this.kioskMezarlikId, lat: this.kioskLat, lng: this.kioskLng })
+   });
+  } catch(e) {}
+
+  this.showSetup = false;
+  this.startApp();
+ },
+
+ handleHeaderClick() {
+  this.headerClicks++;
+  if (this.headerTimer) clearTimeout(this.headerTimer);
+  this.headerTimer = setTimeout(() => {
+   this.headerClicks = 0;
+  }, 2500);
+
+  // Başlığa 5 kez hızlıca tıklanırsa kurulum ekranını açar (teknisyen kısayolu)
+  if (this.headerClicks >= 5) {
+   this.headerClicks = 0;
+   this.openSetup();
+  }
  },
 
  startApp() {
- this.startAdRotator();
- this.resetIdleTimer();
- this.initMap();
+  this.startAdRotator();
+  this.resetIdleTimer();
+  this.initMap();
  },
 
  startAdRotator() {
- if (this.kioskAds.length > 1) {
- this.adInterval = setInterval(() => {
- this.currentAdIndex = (this.currentAdIndex + 1) % this.kioskAds.length;
- }, 10000);
- }
+  if (this.kioskAds.length > 1) {
+   this.adInterval = setInterval(() => {
+    this.currentAdIndex = (this.currentAdIndex + 1) % this.kioskAds.length;
+   }, 10000);
+  }
  },
 
  resetIdleTimer() {
- if (this.idleTimer) clearTimeout(this.idleTimer);
- this.idleTimer = setTimeout(() => {
- this.resetToHome();
- }, this.idleTimeout);
+  if (this.idleTimer) clearTimeout(this.idleTimer);
+  this.idleTimer = setTimeout(() => {
+   this.resetToHome();
+  }, this.idleTimeout);
  },
 
  resetToHome() {
- this.step = 0;
- this.searchQuery = '';
- this.results = [];
- this.showImagePopup = false;
- this.showFatihaModal = false;
- if (this.$refs.fatihaAudio) { this.$refs.fatihaAudio.pause(); }
- if (this.map) {
- this.map.closePopup();
- if (this.markerLayer) this.map.removeLayer(this.markerLayer);
- if (this.routeLine) this.map.removeLayer(this.routeLine);
- if (this.kioskMarkerObj) this.map.removeLayer(this.kioskMarkerObj);
- if (this.graveMarkerObj) this.map.removeLayer(this.graveMarkerObj);
- }
+  this.step = 0;
+  this.searchQuery = '';
+  this.results = [];
+  this.showImagePopup = false;
+  this.showFatihaModal = false;
+  if (this.$refs.fatihaAudio) { this.$refs.fatihaAudio.pause(); }
+  if (this.map) {
+   this.map.closePopup();
+   if (this.markerLayer) this.map.removeLayer(this.markerLayer);
+   if (this.routeLine) this.map.removeLayer(this.routeLine);
+   if (this.kioskMarkerObj) this.map.removeLayer(this.kioskMarkerObj);
+   if (this.graveMarkerObj) this.map.removeLayer(this.graveMarkerObj);
+  }
  },
 
  pressKey(key) {
- this.searchQuery += key;
+  this.searchQuery += key;
  },
 
  async doSearch() {
- if (this.searchQuery.length < 2) return;
- try {
- const res = await fetch(`../api/index.php?action=vatandas_sorgu&q=${encodeURIComponent(this.searchQuery)}`);
- const text = await res.text();
- try {
- const json = JSON.parse(text);
- if (json.status === 'success') {
- this.results = json.data || [];
- this.step = 2;
- } else {
- alert("Sunucu hatası: " + (json.message || 'Bilinmeyen hata'));
- }
- } catch (err) {
- alert("Sunucudan geçersiz yanıt geldi: " + text.substring(0, 100));
- }
- } catch(e) {
- alert("Bağlantı hatası: " + e.message);
- }
+  if (this.searchQuery.length < 2) return;
+  try {
+   const res = await fetch(`../api/index.php?action=vatandas_sorgu&q=${encodeURIComponent(this.searchQuery)}`);
+   const text = await res.text();
+   try {
+    const json = JSON.parse(text);
+    if (json.status === 'success') {
+     this.results = json.data || [];
+     this.step = 2;
+    } else {
+     alert("Sunucu hatası: " + (json.message || 'Bilinmeyen hata'));
+    }
+   } catch (err) {
+    alert("Sunucudan geçersiz yanıt geldi: " + text.substring(0, 100));
+   }
+  } catch(e) {
+   alert("Bağlantı hatası: " + e.message);
+  }
  },
 
  showDetail(res) {
- this.selected = res;
- 
- let img = null;
- if (res.gorsel_url) {
- try {
- let parsed = JSON.parse(res.gorsel_url);
- img = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : parsed;
- } catch(e) {
- img = res.gorsel_url;
- }
- }
- this.selectedImage = img ? (img.startsWith('http') ? img : '../' + img) : null;
- 
- this.step = 3;
+  this.selected = res;
+  
+  let img = null;
+  if (res.gorsel_url) {
+   try {
+    let parsed = JSON.parse(res.gorsel_url);
+    img = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : parsed;
+   } catch(e) {
+    img = res.gorsel_url;
+   }
+  }
+  this.selectedImage = img ? (img.startsWith('http') ? img : '../' + img) : null;
+  
+  this.step = 3;
 
- setTimeout(() => {
- if (res.lat && res.lng) {
- const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${res.lat},${res.lng}`;
- if (!this.qrInstance) {
- this.qrInstance = new QRious({
- element: document.getElementById('qrCodeCanvas'),
- size: 250,
- background: 'white',
- foreground: '#166534'
- });
- }
- this.qrInstance.value = mapUrl;
- this.showQR = true;
- } else {
- this.showQR = false;
- }
+  setTimeout(() => {
+   if (res.lat && res.lng) {
+    const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${res.lat},${res.lng}`;
+    if (!this.qrInstance) {
+     this.qrInstance = new QRious({
+      element: document.getElementById('qrCodeCanvas'),
+      size: 250,
+      background: 'white',
+      foreground: '#166534'
+     });
+    }
+    this.qrInstance.value = mapUrl;
+    this.showQR = true;
+   } else {
+    this.showQR = false;
+   }
 
- if (this.map) {
- this.map.invalidateSize();
-  if (this.markerLayer) this.map.removeLayer(this.markerLayer);
-  if (this.routeLine) this.map.removeLayer(this.routeLine);
-  if (this.kioskMarkerObj) this.map.removeLayer(this.kioskMarkerObj);
-  if (this.graveMarkerObj) this.map.removeLayer(this.graveMarkerObj);
+   if (this.map) {
+    this.map.invalidateSize();
+    if (this.markerLayer) this.map.removeLayer(this.markerLayer);
+    if (this.routeLine) this.map.removeLayer(this.routeLine);
+    if (this.kioskMarkerObj) this.map.removeLayer(this.kioskMarkerObj);
+    if (this.graveMarkerObj) this.map.removeLayer(this.graveMarkerObj);
 
-  if (res.lat && res.lng) {
-  const latLng = [parseFloat(res.lat), parseFloat(res.lng)];
-  const tempGraveIcon = L.divIcon({
+    if (res.lat && res.lng) {
+     const latLng = [parseFloat(res.lat), parseFloat(res.lng)];
+     const tempGraveIcon = L.divIcon({
       html: '<div style="background:#059669; color:white; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 6px 12px rgba(0,0,0,0.3); font-size:20px;"><i class="fa-solid fa-crosshairs"></i></div>',
       className: '',
       iconSize: [44, 44],
       iconAnchor: [22, 22]
-  });
-  this.markerLayer = L.marker(latLng, {icon: tempGraveIcon}).addTo(this.map);
-  this.map.setView(latLng, 19);
-  } else {
-  this.centerMapToKioskLocation();
-  }
- }
- }, 600); // 500ms transition süresini beklemesi için artırıldı
+     });
+     this.markerLayer = L.marker(latLng, {icon: tempGraveIcon}).addTo(this.map);
+     this.map.setView(latLng, 19);
+    } else {
+     this.centerMapToKioskLocation();
+    }
+   }
+  }, 600);
  },
 
  initMap() {
- if (this.map) return;
- 
- this.map = L.map('kioskMap', {
- zoomControl: false,
- attributionControl: false,
- dragging: true,
- touchZoom: true,
- scrollWheelZoom: false,
- doubleClickZoom: true,
- boxZoom: false
- });
- 
- L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
- maxZoom: 22,
- subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
- }).addTo(this.map);
+  if (this.map) return;
+  
+  this.map = L.map('kioskMap', {
+   zoomControl: false,
+   attributionControl: false,
+   dragging: true,
+   touchZoom: true,
+   scrollWheelZoom: false,
+   doubleClickZoom: true,
+   boxZoom: false
+  });
+  
+  L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+   maxZoom: 22,
+   subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+  }).addTo(this.map);
 
- this.centerMapToKioskLocation();
+  this.centerMapToKioskLocation();
  },
 
  centerMapToKioskLocation() {
- if (!this.map) return;
- let centerLat = this.kioskLat || 40.6520;
- let centerLng = this.kioskLng || 29.3520;
- this.map.setView([centerLat, centerLng], 17);
+  if (!this.map) return;
+  let centerLat = this.kioskLat || 40.659362;
+  let centerLng = this.kioskLng || 29.341737;
+  this.map.setView([centerLat, centerLng], 17);
  },
 
  drawRoute() {
- if (!this.map || !this.selected.lat || !this.selected.lng) {
- alert("Bu mezarın konum bilgisi bulunmuyor.");
- return;
- }
+  if (!this.map || !this.selected.lat || !this.selected.lng) {
+   alert("Bu mezarın konum bilgisi bulunmuyor.");
+   return;
+  }
   if (this.routeLine) this.map.removeLayer(this.routeLine);
   if (this.markerLayer) this.map.removeLayer(this.markerLayer);
   if (this.kioskMarkerObj) this.map.removeLayer(this.kioskMarkerObj);
   if (this.graveMarkerObj) this.map.removeLayer(this.graveMarkerObj);
 
   const dest = [parseFloat(this.selected.lat), parseFloat(this.selected.lng)];
-  const start = [this.kioskLat || 40.6520, this.kioskLng || 29.3520];
+  const start = [this.kioskLat || 40.659362, this.kioskLng || 29.341737];
   
+  // Farklı mezarlık kontrolü
+  const isDifferentMezarlik = this.kioskMezarlikId && this.selected.mezarlik_id && (parseInt(this.selected.mezarlik_id) !== this.kioskMezarlikId);
+
+  const graveIcon = L.divIcon({
+   html: '<div style="background:#059669; color:white; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 6px 12px rgba(0,0,0,0.3); font-size:20px;"><i class="fa-solid fa-flag-checkered"></i></div>',
+   className: '',
+   iconSize: [44, 44],
+   iconAnchor: [22, 22]
+  });
+  this.graveMarkerObj = L.marker(dest, {icon: graveIcon}).addTo(this.map);
+
+  if (isDifferentMezarlik) {
+   // Farklı mezarlıktaysa sadece mezar noktasını göster ve oraya odakla
+   this.map.setView(dest, 18);
+   return;
+  }
+
+  // Aynı mezarlıktaysa rotayı çiz
   this.routeLine = L.polyline([start, dest], {
-  color: '#3b82f6', 
-  weight: 8,
-  opacity: 0.9,
-  dashArray: '15, 15',
-  lineCap: 'round'
+   color: '#3b82f6', 
+   weight: 8,
+   opacity: 0.9,
+   dashArray: '15, 15',
+   lineCap: 'round'
   }).addTo(this.map);
 
   const kioskIcon = L.divIcon({
-      html: '<div style="background:#1d4ed8; color:white; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 6px 12px rgba(0,0,0,0.3); font-size:20px;"><i class="fa-solid fa-location-dot"></i></div>',
-      className: '',
-      iconSize: [44, 44],
-      iconAnchor: [22, 22]
-  });
-
-  const graveIcon = L.divIcon({
-      html: '<div style="background:#059669; color:white; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 6px 12px rgba(0,0,0,0.3); font-size:20px;"><i class="fa-solid fa-flag-checkered"></i></div>',
-      className: '',
-      iconSize: [44, 44],
-      iconAnchor: [22, 22]
+   html: '<div style="background:#1d4ed8; color:white; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:3px solid white; box-shadow:0 6px 12px rgba(0,0,0,0.3); font-size:20px;"><i class="fa-solid fa-location-dot"></i></div>',
+   className: '',
+   iconSize: [44, 44],
+   iconAnchor: [22, 22]
   });
 
   this.kioskMarkerObj = L.marker(start, {icon: kioskIcon}).addTo(this.map);
-  this.graveMarkerObj = L.marker(dest, {icon: graveIcon}).addTo(this.map);
 
-  // Üst menü ve alt bilgi kartının altında kalmaması için özel padding (boşluk) ayarı
   this.map.fitBounds(this.routeLine.getBounds(), { 
-      paddingTopLeft: [100, 180],
-      paddingBottomRight: [100, 300],
-      maxZoom: 20 
+   paddingTopLeft: [100, 180],
+   paddingBottomRight: [100, 300],
+   maxZoom: 20 
   });
-  }
+ }
  }
  }
  </script>

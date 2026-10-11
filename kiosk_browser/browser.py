@@ -37,15 +37,12 @@ class KioskWebEnginePage(QWebEnginePage):
             QWebEnginePage.PermissionGrantedByUser
         )
 
-# Donanımsal GPS olmayan Windows/Mac cihazlar için akıllı konum çözücü
+# Donanımsal GPS olmayan Windows/Mac cihazlar için hızlı ve güvenli konum sağlayıcı
 GEO_POLYFILL_JS = """
 (function() {
     if (!navigator.geolocation) {
         navigator.geolocation = {};
     }
-    const origGetCurrentPosition = navigator.geolocation.getCurrentPosition;
-    const DEFAULT_LAT = 40.6520;
-    const DEFAULT_LNG = 29.3520;
 
     function buildPosition(lat, lng) {
         return {
@@ -53,7 +50,7 @@ GEO_POLYFILL_JS = """
                 latitude: lat,
                 longitude: lng,
                 altitude: null,
-                accuracy: 25,
+                accuracy: 10,
                 altitudeAccuracy: null,
                 heading: null,
                 speed: null
@@ -63,52 +60,28 @@ GEO_POLYFILL_JS = """
     }
 
     navigator.geolocation.getCurrentPosition = function(successCallback, errorCallback, options) {
-        let isDone = false;
-
-        function fallback() {
-            if (isDone) return;
-            isDone = true;
-            // 1. IP tabanlı konum servisi
-            fetch('https://ipapi.co/json/')
-                .then(r => r.json())
-                .then(data => {
-                    if (data && data.latitude && data.longitude) {
-                        successCallback(buildPosition(parseFloat(data.latitude), parseFloat(data.longitude)));
-                    } else {
-                        successCallback(buildPosition(DEFAULT_LAT, DEFAULT_LNG));
-                    }
-                })
-                .catch(() => {
-                    // 2. Çiftlikköy Belediyesi Mezarlık koordinatları
-                    successCallback(buildPosition(DEFAULT_LAT, DEFAULT_LNG));
-                });
-        }
-
         try {
-            if (typeof origGetCurrentPosition === 'function') {
-                origGetCurrentPosition.call(
-                    navigator.geolocation,
-                    function(pos) {
-                        if (!isDone) {
-                            isDone = true;
-                            successCallback(pos);
-                        }
-                    },
-                    function(err) {
-                        console.warn('Native GPS basarisiz, kiosk konum yedegi kullaniliyor:', err);
-                        fallback();
-                    },
-                    { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
-                );
-                // 4.5 saniye zaman aşımı emniyeti
-                setTimeout(fallback, 4500);
-            } else {
-                fallback();
+            const savedLat = parseFloat(localStorage.getItem('kiosk_lat'));
+            const savedLng = parseFloat(localStorage.getItem('kiosk_lng'));
+            if (!isNaN(savedLat) && !isNaN(savedLng)) {
+                if (typeof successCallback === 'function') {
+                    successCallback(buildPosition(savedLat, savedLng));
+                }
+                return;
             }
-        } catch(e) {
-            fallback();
+        } catch(e) {}
+
+        // Cihaz hafızasında yoksa varsayılan Çiftlikköy koordinatını anında döndür
+        if (typeof successCallback === 'function') {
+            successCallback(buildPosition(40.659362, 29.341737));
         }
     };
+
+    navigator.geolocation.watchPosition = function(successCallback, errorCallback, options) {
+        navigator.geolocation.getCurrentPosition(successCallback, errorCallback, options);
+        return 1;
+    };
+    navigator.geolocation.clearWatch = function(id) {};
 })();
 """
 
