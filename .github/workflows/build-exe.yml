@@ -1,4 +1,4 @@
-name: Build Kiosk Browser EXE
+name: Build Kiosk Browser (Windows & macOS)
 
 on:
   push:
@@ -12,7 +12,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-windows:
+    name: Windows (EXE ve Kurulum)
     runs-on: windows-latest
     
     steps:
@@ -52,7 +53,7 @@ jobs:
       run: |
         pyinstaller --noconfirm --onefile --windowed --name "KioskBrowser-TekDosya" --collect-all PyQt5 --collect-all PyQtWebEngine browser.py
 
-    - name: EXE Dosyalarını Artifact Olarak Yükle
+    - name: Windows Çıktılarını Artifact Olarak Yükle
       uses: actions/upload-artifact@v4
       with:
         name: KioskBrowser-Windows
@@ -61,24 +62,91 @@ jobs:
           kiosk_browser/dist/KioskBrowser-TekDosya.exe
         if-no-files-found: error
 
+  build-macos:
+    name: macOS (DMG ve ZIP)
+    runs-on: macos-latest
+    
+    steps:
+    - name: Depoyu Kopyala
+      uses: actions/checkout@v4
+      
+    - name: Python'u Kur
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        
+    - name: Bağımlılıkları Yükle
+      working-directory: ./kiosk_browser
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller pyinstaller-hooks-contrib
+
+    - name: macOS .app Paketi Oluştur
+      working-directory: ./kiosk_browser
+      run: |
+        pyinstaller --noconfirm --windowed --name "KioskBrowser" --collect-all PyQt5 --collect-all PyQtWebEngine browser.py
+
+    - name: DMG ve ZIP Kalıplarını Hazırla
+      working-directory: ./kiosk_browser
+      run: |
+        hdiutil create -volname "CiftlikkoyMBSKiosk" -srcfolder dist/KioskBrowser.app -ov -format UDZO dist/KioskBrowser-macOS.dmg
+        ditto -c -k --sequesterRsrc --keepParent dist/KioskBrowser.app dist/KioskBrowser-macOS.zip
+
+    - name: macOS Çıktılarını Artifact Olarak Yükle
+      uses: actions/upload-artifact@v4
+      with:
+        name: KioskBrowser-macOS
+        path: |
+          kiosk_browser/dist/KioskBrowser-macOS.dmg
+          kiosk_browser/dist/KioskBrowser-macOS.zip
+        if-no-files-found: error
+
+  release:
+    name: GitHub Releases Yayınla
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Windows Çıktılarını İndir
+      uses: actions/download-artifact@v4
+      with:
+        name: KioskBrowser-Windows
+        path: release_files
+
+    - name: macOS Çıktılarını İndir
+      uses: actions/download-artifact@v4
+      with:
+        name: KioskBrowser-macOS
+        path: release_files
+
     - name: GitHub Release Olarak Yayınla
       uses: softprops/action-gh-release@v2
-      if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
       continue-on-error: true
       with:
         tag_name: v1.0.0
-        name: "Kiosk Browser v1.0.0 (Windows)"
+        name: "Kiosk Browser v1.0.0 (Windows & macOS)"
         body: |
-          ### Çiftlikköy MBS Windows Kiosk Tarayıcısı
-          
-          İki farklı kullanım seçeneği:
+          ### Çiftlikköy MBS Kiosk Tarayıcısı (Windows & macOS)
+
+          #### 🪟 Windows Sürümü:
           - **KioskBrowser-Kurulum.exe**: Masaüstü simgesi oluşturan tek tıkla kurulum sihirbazı.
-          - **KioskBrowser-TekDosya.exe**: Kurulum gerektirmeyen tek parça taşınabilir (portable) .exe dosyası.
-          
-          **Kısayollar:**
-          - Yönetici Çıkış Tuşu: `Ctrl + Shift + Q`
+          - **KioskBrowser-TekDosya.exe**: Kurulum gerektirmeyen tek parça taşınabilir (.exe) sürüm.
+
+          #### 🍎 macOS Sürümü:
+          - **KioskBrowser-macOS.dmg**: Çift tıklayıp Uygulamalar (Applications) klasörüne sürükleyebileceğiniz kurulum kalıbı.
+          - **KioskBrowser-macOS.zip**: Taşınabilir KioskBrowser.app sıkıştırılmış arşivi.
+
+          **Kısayollar & Güvenlik:**
+          - Tam ekran ve çerçevesiz kiosk modu, sağ tık menüsü engelli.
+          - Gizli Yönetici Çıkışı: Windows'ta `Ctrl + Shift + Q`, Mac'te `Cmd + Shift + Q`.
         files: |
-          kiosk_browser/dist/KioskBrowser-Kurulum.exe
-          kiosk_browser/dist/KioskBrowser-TekDosya.exe
+          release_files/KioskBrowser-Kurulum.exe
+          release_files/KioskBrowser-TekDosya.exe
+          release_files/KioskBrowser-macOS.dmg
+          release_files/KioskBrowser-macOS.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,13 +4,14 @@ from PyQt5.QtCore import QUrl, Qt
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 
-# PyInstaller tek dosya (onefile) modunda QtWebEngine dosyalarını bulabilmesi için
+# PyInstaller paketlemesinde WebEngine yollarını ayarla
 if hasattr(sys, '_MEIPASS'):
     base_dir = sys._MEIPASS
     possible_paths = [
         os.path.join(base_dir, 'PyQt5', 'Qt5', 'bin', 'QtWebEngineProcess.exe'),
         os.path.join(base_dir, 'PyQt5', 'Qt', 'bin', 'QtWebEngineProcess.exe'),
-        os.path.join(base_dir, 'QtWebEngineProcess.exe')
+        os.path.join(base_dir, 'QtWebEngineProcess.exe'),
+        os.path.join(base_dir, 'PyQt5', 'Qt5', 'lib', 'QtWebEngineCore.framework', 'Helpers', 'QtWebEngineProcess.app', 'Contents', 'MacOS', 'QtWebEngineProcess')
     ]
     for p in possible_paths:
         if os.path.exists(p):
@@ -47,21 +48,35 @@ class KioskBrowser(QMainWindow):
     def contextMenuEvent(self, event):
         event.ignore()
 
-    # Klavye kontrolleri ve güvenlik
+    # Klavye kontrolleri ve güvenlik (Windows & macOS uyumlu)
     def keyPressEvent(self, event):
-        # Gizli yönetici çıkış kombinasyonu: Ctrl + Shift + Q
-        if event.key() == Qt.Key_Q and (event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier)):
+        modifiers = event.modifiers()
+        key = event.key()
+
+        # Gizli yönetici çıkış kombinasyonu:
+        # Windows: Ctrl + Shift + Q
+        # macOS: Cmd + Shift + Q veya Ctrl + Shift + Q
+        is_admin_exit = (key == Qt.Key_Q) and (
+            (modifiers == (Qt.ControlModifier | Qt.ShiftModifier)) or
+            (modifiers == (Qt.MetaModifier | Qt.ShiftModifier))
+        )
+        if is_admin_exit:
             QApplication.quit()
             return
             
+        # macOS üzerinde Cmd tuşu kısayollarını (Cmd+Q, Cmd+W, Cmd+M, Cmd+H) engelle
+        if bool(modifiers & Qt.MetaModifier) and key in (Qt.Key_Q, Qt.Key_W, Qt.Key_M, Qt.Key_H):
+            event.ignore()
+            return
+
         # Escape tuşunu yoksay
-        if event.key() == Qt.Key_Escape:
+        if key == Qt.Key_Escape:
             event.ignore()
         # Alt+F4 kombinasyonunu yoksay
-        elif event.key() == Qt.Key_F4 and (event.modifiers() & Qt.AltModifier):
+        elif key == Qt.Key_F4 and (modifiers & Qt.AltModifier):
             event.ignore()
         # F11 (tam ekran), F12 (incele), F5 (yenile) engelleme
-        elif event.key() in (Qt.Key_F11, Qt.Key_F12):
+        elif key in (Qt.Key_F11, Qt.Key_F12):
             event.ignore()
         else:
             super().keyPressEvent(event)
