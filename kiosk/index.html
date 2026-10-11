@@ -134,12 +134,18 @@
             <h2 class="text-2xl md:text-4xl font-black text-slate-800 mb-2 md:mb-4 shrink-0">Kiosk İlk Kurulum</h2>
             <p class="text-slate-500 mb-4 md:mb-8 text-md md:text-xl font-medium shrink-0">Bu Kiosk cihazının yerini belirleyip harita rotalarının doğru çizilmesini sağlamak için konumu kaydedin.</p>
             
-            <div class="flex items-center justify-center flex-1">
-                <button @click="saveKioskLocation()" :disabled="isLocating" class="kiosk-btn w-full max-w-lg p-6 md:p-8 bg-gradient-to-r from-brand-green to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-3xl md:rounded-[30px] font-black shadow-xl shadow-green-900/20 flex flex-col items-center justify-center gap-4 transition-all disabled:opacity-50 disabled:cursor-wait">
-                    <div class="bg-white/20 p-4 rounded-full flex items-center justify-center">
-                        <i class="fa-solid fa-location-crosshairs text-4xl md:text-5xl" :class="isLocating ? 'fa-spin' : ''"></i>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 flex-1 w-full max-w-2xl mx-auto">
+                <button @click="saveKioskLocation()" :disabled="isLocating" class="kiosk-btn flex-1 w-full p-6 bg-gradient-to-r from-brand-green to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-2xl md:rounded-3xl font-black shadow-xl shadow-green-900/20 flex flex-col items-center justify-center gap-3 transition-all disabled:opacity-50">
+                    <div class="bg-white/20 p-3 rounded-full flex items-center justify-center">
+                        <i class="fa-solid fa-location-crosshairs text-3xl md:text-4xl" :class="isLocating ? 'fa-spin' : ''"></i>
                     </div>
-                    <span class="text-2xl md:text-3xl" x-text="isLocating ? 'Konum Bulunuyor...' : 'Kiosk Konumunu Kaydet'"></span>
+                    <span class="text-xl md:text-2xl" x-text="isLocating ? 'Konum Alınıyor...' : 'Konumu Otomatik Al'"></span>
+                </button>
+                <button @click="useDefaultLocation()" :disabled="isLocating" class="kiosk-btn flex-1 w-full p-6 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl md:rounded-3xl font-black shadow-xl flex flex-col items-center justify-center gap-3 transition-all disabled:opacity-50">
+                    <div class="bg-white/20 p-3 rounded-full flex items-center justify-center">
+                        <i class="fa-solid fa-map-pin text-3xl md:text-4xl text-emerald-400"></i>
+                    </div>
+                    <span class="text-xl md:text-2xl">Çiftlikköy Konumunu Ata</span>
                 </button>
             </div>
         </div>
@@ -460,30 +466,59 @@
  } catch(e) {}
  },
 
+ async persistKioskLocation(lat, lng) {
+  this.kioskLat = lat;
+  this.kioskLng = lng;
+  try {
+   await fetch('../api/index.php?action=kiosk_save_location', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat: this.kioskLat, lng: this.kioskLng })
+   });
+  } catch(e) { console.error("Konum veritabanına kaydedilemedi:", e); }
+  this.showSetup = false;
+  this.isLocating = false;
+  this.startApp();
+ },
+
  saveKioskLocation() {
- this.isLocating = true;
- if ("geolocation" in navigator) {
- navigator.geolocation.getCurrentPosition(async (pos) => {
- this.kioskLat = pos.coords.latitude;
- this.kioskLng = pos.coords.longitude;
- try {
- await fetch('../api/index.php?action=kiosk_save_location', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ lat: this.kioskLat, lng: this.kioskLng })
- });
- } catch(e) { console.error("Konum veritabanına kaydedilemedi:", e); }
- this.showSetup = false;
- this.isLocating = false;
- this.startApp();
- }, (err) => {
- alert("Konum alınamadı. Lütfen cihazın konum (GPS) servislerinin açık ve tarayıcının konum iznine sahip olduğuna emin olun.");
- this.isLocating = false;
- }, { enableHighAccuracy: true });
- } else {
- alert("Bu cihazda konum özelliği desteklenmiyor.");
- this.isLocating = false;
- }
+  this.isLocating = true;
+  const DEFAULT_LAT = 40.6520;
+  const DEFAULT_LNG = 29.3520;
+
+  const fallbackLocation = async () => {
+   try {
+    const res = await fetch('https://ipapi.co/json/');
+    if (res.ok) {
+     const data = await res.json();
+     if (data && data.latitude && data.longitude) {
+      await this.persistKioskLocation(parseFloat(data.latitude), parseFloat(data.longitude));
+      return;
+     }
+    }
+   } catch(e) {}
+   await this.persistKioskLocation(DEFAULT_LAT, DEFAULT_LNG);
+  };
+
+  if ("geolocation" in navigator) {
+   navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+     await this.persistKioskLocation(pos.coords.latitude, pos.coords.longitude);
+    }, 
+    async (err) => {
+     console.warn("GPS konumu alınamadı, yedek deneniyor:", err);
+     await fallbackLocation();
+    }, 
+    { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
+   );
+  } else {
+   fallbackLocation();
+  }
+ },
+
+ useDefaultLocation() {
+  this.isLocating = true;
+  this.persistKioskLocation(40.6520, 29.3520);
  },
 
  startApp() {

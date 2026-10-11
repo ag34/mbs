@@ -2,7 +2,12 @@ import sys
 import os
 from PyQt5.QtCore import QUrl, Qt
 from PyQt5.QtWidgets import QApplication, QMainWindow
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
+from PyQt5.QtWebEngineWidgets import (
+    QWebEngineView, 
+    QWebEngineSettings, 
+    QWebEnginePage, 
+    QWebEngineScript
+)
 
 # PyInstaller paketlemesinde WebEngine yollarını ayarla
 if hasattr(sys, '_MEIPASS'):
@@ -18,6 +23,95 @@ if hasattr(sys, '_MEIPASS'):
             os.environ['QTWEBENGINEPROCESS_PATH'] = p
             break
 
+# Otomatik İzin Yönetimi (Konum / Geolocation izinlerini otomatik onaylar)
+class KioskWebEnginePage(QWebEnginePage):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.featurePermissionRequested.connect(self.handle_feature_permission)
+
+    def handle_feature_permission(self, security_origin, feature):
+        # Geolocation (Konum) ve tüm web izinlerini onay ver
+        self.setFeaturePermission(
+            security_origin, 
+            feature, 
+            QWebEnginePage.PermissionGrantedByUser
+        )
+
+# Donanımsal GPS olmayan Windows/Mac cihazlar için akıllı konum çözücü
+GEO_POLYFILL_JS = """
+(function() {
+    if (!navigator.geolocation) {
+        navigator.geolocation = {};
+    }
+    const origGetCurrentPosition = navigator.geolocation.getCurrentPosition;
+    const DEFAULT_LAT = 40.6520;
+    const DEFAULT_LNG = 29.3520;
+
+    function buildPosition(lat, lng) {
+        return {
+            coords: {
+                latitude: lat,
+                longitude: lng,
+                altitude: null,
+                accuracy: 25,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: null
+            },
+            timestamp: Date.now()
+        };
+    }
+
+    navigator.geolocation.getCurrentPosition = function(successCallback, errorCallback, options) {
+        let isDone = false;
+
+        function fallback() {
+            if (isDone) return;
+            isDone = true;
+            // 1. IP tabanlı konum servisi
+            fetch('https://ipapi.co/json/')
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.latitude && data.longitude) {
+                        successCallback(buildPosition(parseFloat(data.latitude), parseFloat(data.longitude)));
+                    } else {
+                        successCallback(buildPosition(DEFAULT_LAT, DEFAULT_LNG));
+                    }
+                })
+                .catch(() => {
+                    // 2. Çiftlikköy Belediyesi Mezarlık koordinatları
+                    successCallback(buildPosition(DEFAULT_LAT, DEFAULT_LNG));
+                });
+        }
+
+        try {
+            if (typeof origGetCurrentPosition === 'function') {
+                origGetCurrentPosition.call(
+                    navigator.geolocation,
+                    function(pos) {
+                        if (!isDone) {
+                            isDone = true;
+                            successCallback(pos);
+                        }
+                    },
+                    function(err) {
+                        console.warn('Native GPS basarisiz, kiosk konum yedegi kullaniliyor:', err);
+                        fallback();
+                    },
+                    { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
+                );
+                // 4.5 saniye zaman aşımı emniyeti
+                setTimeout(fallback, 4500);
+            } else {
+                fallback();
+            }
+        } catch(e) {
+            fallback();
+        }
+    };
+})();
+"""
+
 class KioskBrowser(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -27,8 +121,22 @@ class KioskBrowser(QMainWindow):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.showFullScreen()
         
-        # Web motorunu oluştur (Chromium tabanlı)
+        # Web motorunu ve özel sayfayı oluştur
         self.browser = QWebEngineView()
+        self.page = KioskWebEnginePage(self.browser)
+        self.browser.setPage(self.page)
+        
+        # Geolocation betiğini enjekte et
+        script = QWebEngineScript()
+        script.setName("KioskGeolocationFallback")
+        script.setInjectionPoint(QWebEngineScript.DocumentCreation)
+        script.setWorldId(QWebEngineScript.MainWorld)
+        script.setRunsOnSubFrames(True)
+        script.setSourceCode(GEO_POLYFILL_JS)
+        self.browser.page().profile().scripts().insert(script)
+
+        # Sayfa yüklendiğinde de garanti olarak çalıştır
+        self.browser.loadFinished.connect(lambda ok: self.browser.page().runJavaScript(GEO_POLYFILL_JS))
         
         # Güvenlik: Sağ tık bağlam menüsünü engelle
         self.browser.setContextMenuPolicy(Qt.NoContextMenu)
@@ -38,6 +146,7 @@ class KioskBrowser(QMainWindow):
         settings.setAttribute(QWebEngineSettings.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.LocalStorageEnabled, True)
         settings.setAttribute(QWebEngineSettings.ScrollAnimatorEnabled, True)
+        settings.setAttribute(QWebEngineSettings.AllowGeolocationOnInsecureOrigins, True)
         
         # Kiosk başlangıç adresi
         self.browser.setUrl(QUrl("https://ciftlikkoymbs.com/kiosk")) 
