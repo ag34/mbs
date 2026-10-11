@@ -8,6 +8,9 @@ on:
       - '.github/workflows/build-exe.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -26,15 +29,56 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller
+        pip install pyinstaller pyinstaller-hooks-contrib
         
-    - name: EXE Oluştur
+    - name: Inno Setup Kur
+      run: |
+        choco install innosetup --no-progress
+      shell: powershell
+
+    - name: Klasör Tipi EXE Oluştur
       working-directory: ./kiosk_browser
       run: |
-        pyinstaller --noconfirm --onedir --windowed --name "KioskBrowser" browser.py
-        
-    - name: EXE Dosyasını Zipleyip Yükle
+        pyinstaller --noconfirm --onedir --windowed --name "KioskBrowser" --collect-all PyQt5 --collect-all PyQtWebEngine browser.py
+
+    - name: Kurulum Sihirbazı (Setup EXE) Hazırla
+      working-directory: ./kiosk_browser
+      run: |
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+      shell: powershell
+
+    - name: Tek Dosya Bağımsız EXE Oluştur
+      working-directory: ./kiosk_browser
+      run: |
+        pyinstaller --noconfirm --onefile --windowed --name "KioskBrowser-TekDosya" --collect-all PyQt5 --collect-all PyQtWebEngine browser.py
+
+    - name: EXE Dosyalarını Artifact Olarak Yükle
       uses: actions/upload-artifact@v4
       with:
         name: KioskBrowser-Windows
-        path: kiosk_browser/dist/KioskBrowser
+        path: |
+          kiosk_browser/dist/KioskBrowser-Kurulum.exe
+          kiosk_browser/dist/KioskBrowser-TekDosya.exe
+        if-no-files-found: error
+
+    - name: GitHub Release Olarak Yayınla
+      uses: softprops/action-gh-release@v2
+      if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+      continue-on-error: true
+      with:
+        tag_name: v1.0.0
+        name: "Kiosk Browser v1.0.0 (Windows)"
+        body: |
+          ### Çiftlikköy MBS Windows Kiosk Tarayıcısı
+          
+          İki farklı kullanım seçeneği:
+          - **KioskBrowser-Kurulum.exe**: Masaüstü simgesi oluşturan tek tıkla kurulum sihirbazı.
+          - **KioskBrowser-TekDosya.exe**: Kurulum gerektirmeyen tek parça taşınabilir (portable) .exe dosyası.
+          
+          **Kısayollar:**
+          - Yönetici Çıkış Tuşu: `Ctrl + Shift + Q`
+        files: |
+          kiosk_browser/dist/KioskBrowser-Kurulum.exe
+          kiosk_browser/dist/KioskBrowser-TekDosya.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
